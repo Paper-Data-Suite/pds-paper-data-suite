@@ -1,0 +1,202 @@
+{
+  "components": [
+    {
+      "capabilities": [
+        "launchable_application",
+        "publication_producer",
+        "routing_module"
+      ],
+      "compatibility_status": "supported",
+      "component_id": "concord",
+      "display_name": "Concord",
+      "distribution": "pds-concord",
+      "entry_points": {
+        "console_scripts": {
+          "concord": "concord.cli:main"
+        },
+        "paper_data_suite.modules": {
+          "concord": "concord.pds_module:get_module_profile"
+        },
+        "paper_data_suite.publication_producers": {
+          "concord": "concord.pds_publication:get_publication_producer_profile"
+        }
+      },
+      "external_prerequisites": [],
+      "import_name": "concord",
+      "release": {
+        "sha256": "e7f0171e8fd54eaa6ab0fd71580378bdd5ee8577a686890cd470dac83f7a619e",
+        "tag": "v0.2.0",
+        "wheel": "pds_concord-0.2.0-py3-none-any.whl"
+      },
+      "repository": "Paper-Data-Suite/pds-concord",
+      "required": false,
+      "requires_python": ">=3.11",
+      "version": "0.2.0"
+    },
+    {
+      "capabilities": [
+        "shared_core"
+      ],
+      "compatibility_status": "supported",
+      "component_id": "core",
+      "display_name": "PDS Core",
+      "distribution": "pds-core",
+      "entry_points": {
+        "console_scripts": {
+          "core": "pds_core.core_menu:main",
+          "pds-core": "pds_core.cli:main"
+        },
+        "paper_data_suite.modules": {},
+        "paper_data_suite.publication_producers": {}
+      },
+      "external_prerequisites": [],
+      "import_name": "pds_core",
+      "release": {
+        "sha256": "be28c061b38463ef59ebc328ed1aa443767fe7f2c626babb769c2d8e5932f308",
+        "tag": "v0.6.0",
+        "wheel": "pds_core-0.6.0-py3-none-any.whl"
+      },
+      "repository": "Paper-Data-Suite/pds-core",
+      "required": true,
+      "requires_python": ">=3.11",
+      "version": "0.6.0"
+    },
+    {
+      "capabilities": [
+        "launchable_application",
+        "publication_producer",
+        "routing_module"
+      ],
+      "compatibility_status": "supported",
+      "component_id": "quillan",
+      "display_name": "Quillan",
+      "distribution": "quillan",
+      "entry_points": {
+        "console_scripts": {
+          "quillan": "quillan.cli:main"
+        },
+        "paper_data_suite.modules": {
+          "quillan": "quillan.pds_module:get_module_profile"
+        },
+        "paper_data_suite.publication_producers": {
+          "quillan": "quillan.pds_publication:get_publication_producer_profile"
+        }
+      },
+      "external_prerequisites": [
+        {
+          "commands": [
+            "pdftoppm"
+          ],
+          "id": "poppler_pdftoppm",
+          "kind": "command",
+          "platforms": [
+            "linux",
+            "windows"
+          ],
+          "purpose": "PDF scan rasterization",
+          "required": true
+        }
+      ],
+      "import_name": "quillan",
+      "release": {
+        "sha256": "4e3bf92287d1a140a6edc062abcb759c02eb811c9ba4e2212e9c4878d3a07f1c",
+        "tag": "v0.9.0",
+        "wheel": "quillan-0.9.0-py3-none-any.whl"
+      },
+      "repository": "Paper-Data-Suite/pds-quillan",
+      "required": false,
+      "requires_python": ">=3.11",
+      "version": "0.9.0"
+    },
+    {
+      "capabilities": [
+        "launchable_application",
+        "publication_producer",
+        "routing_module"
+      ],
+      "compatibility_status": "supported",
+      "component_id": "scoreform",
+      "display_name": "ScoreForm",
+      "distribution": "scoreform",
+      "entry_points": {
+        "console_scripts": {
+          "scoreform": "scoreform.cli:main"
+        },
+        "paper_data_suite.modules": {
+          "scoreform": "scoreform.pds_module:get_module_profile"
+        },
+        "paper_data_suite.publication_producers": {
+          "scoreform": "scoreform.pds_publication:get_publication_producer_profile"
+        }
+      },
+      "external_prerequisites": [
+        {
+          "commands": [
+            "pdftoppm"
+          ],
+          "id": "poppler_pdftoppm",
+          "kind": "command",
+          "platforms": [
+            "linux",
+            "windows"
+          ],
+          "purpose": "PDF scan rasterization",
+          "required": true
+        }
+      ],
+      "import_name": "scoreform",
+      "release": {
+        "sha256": "04c79c9b884040e3fc32b2551a4ad4fa6c63d4d04f1094b648e223bbb3c076d0",
+        "tag": "v0.10.0",
+        "wheel": "scoreform-0.10.0-py3-none-any.whl"
+      },
+      "repository": "Paper-Data-Suite/pds-scoreform",
+      "required": false,
+      "requires_python": ">=3.11",
+      "version": "0.10.0"
+    },
+    {
+      "capabilities": [
+        "launchable_application"
+      ],
+      "compatibility_status": "supported",
+      "component_id": "vitrine",
+      "display_name": "Vitrine",
+      "distribution": "pds-vitrine",
+      "entry_points": {
+        "console_scripts": {
+          "vitrine": "vitrine.cli:main"
+        },
+        "paper_data_suite.modules": {},
+        "paper_data_suite.publication_producers": {}
+      },
+      "external_prerequisites": [],
+      "import_name": "vitrine",
+      "release": {
+        "sha256": "a2c50b997abab7e4b32c2a8bc434990ef3b8229288db94b1c2677d1ee964a61b",
+        "tag": "v0.2.0",
+        "wheel": "pds_vitrine-0.2.0-py3-none-any.whl"
+      },
+      "repository": "Paper-Data-Suite/pds-vitrine",
+      "required": false,
+      "requires_python": ">=3.11",
+      "version": "0.2.0"
+    }
+  ],
+  "contract_version": "1",
+  "python": {
+    "specifier": ">=3.11,<3.15",
+    "tested_minors": [
+      "3.11",
+      "3.12",
+      "3.13",
+      "3.14"
+    ]
+  },
+  "record_type": "paper_data_suite_release_compatibility_manifest",
+  "suite": {
+    "distribution": "paper-data-suite",
+    "release_status": "development",
+    "version": "0.1.0.dev0"
+  }
+}

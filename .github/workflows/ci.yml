@@ -80,6 +80,9 @@ jobs:
           --basetemp "${{ runner.temp }}/pytest"
           -o cache_dir="${{ runner.temp }}/pytest-cache"
 
+      - name: Validate compatibility manifest
+        run: python scripts/validate_compatibility_manifest.py
+
       - name: Lint
         run: python -m ruff check .
 
@@ -124,4 +127,69 @@ jobs:
           if ($residue) {
             $residue
             throw "Validation left tracked or untracked repository residue."
+          }
+
+  release-artifacts:
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure release-audit directory
+        shell: pwsh
+        run: |
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP "compatibility-artifacts"
+          New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
+          "PDS_COMPATIBILITY_ARTIFACT_DIR=$artifactDirectory" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Download exact declared release wheels
+        shell: python
+        run: |
+          import json
+          import os
+          from pathlib import Path
+          from urllib.request import urlretrieve
+
+          manifest_path = (
+              Path("paper_data_suite")
+              / "data"
+              / "release_compatibility_v1.json"
+          )
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          destination = Path(os.environ["PDS_COMPATIBILITY_ARTIFACT_DIR"])
+
+          for component in manifest["components"]:
+              release = component["release"]
+              url = (
+                  f"https://github.com/{component['repository']}"
+                  f"/releases/download/{release['tag']}/{release['wheel']}"
+              )
+              urlretrieve(url, destination / release["wheel"])
+
+      - name: Authenticate declared release wheels
+        shell: pwsh
+        run: |
+          python scripts/validate_compatibility_manifest.py
+          python scripts/verify_compatibility_artifacts.py `
+            --artifact-dir "$env:PDS_COMPATIBILITY_ARTIFACT_DIR"
+
+      - name: Verify release-audit repository hygiene
+        shell: pwsh
+        run: |
+          git diff --check
+
+          $residue = git status --porcelain --untracked-files=all
+
+          if ($residue) {
+            $residue
+            throw "Release-artifact audit left repository residue."
           }
