@@ -1,0 +1,43 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache, test, type-checking, and coverage artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python packaging/build artifacts
+build/
+dist/
+*.egg-info/
+*.whl
+
+# Editor/IDE files
+.vscode/
+.idea/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary and local scratch files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
