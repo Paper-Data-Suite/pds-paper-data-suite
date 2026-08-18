@@ -12,25 +12,26 @@ command as a bounded orchestration layer over PDS Core and installed modules.
 
 The suite shell is in initial pre-release development.
 
-At this point, this repository contains planning and identity documentation only.
-It is **not yet an installable Python package**, does not yet expose a `pds`
-command, and has no supported release.
+At this point, this repository contains planning and architecture documentation
+only. It is **not yet an installable Python package**, does not yet expose a
+`pds` command, and has no supported release.
 
-The active v0.1.0 milestone will define the shell's exact ownership and
-integration boundaries before runtime implementation proceeds.
+The active v0.1.0 milestone will build the first runtime implementation within
+the ownership and integration boundaries established for the suite shell.
 
 ## Architecture direction
 
-The v0.1.0 plan requires the suite shell to remain orchestration-only.
+The suite shell is an orchestration and teacher-convenience layer, not a second
+Core or an alternate owner of module records.
 
 PDS Core remains the authority for shared workspace and cross-module
 infrastructure. Individual PDS modules remain authoritative for their own
 canonical records, business rules, and teacher workflows. The shell must use
-public Core services and supported module integration surfaces rather than
-copying or directly mutating module-owned state.
+public Core services and supported component boundaries rather than copying or
+directly mutating owner state.
 
-The comprehensive architectural contract will be established by the first
-v0.1.0 implementation issue.
+The normative contract is
+[`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md).
 
 ## Development bootstrap
 
@@ -52,12 +53,14 @@ does not contain package metadata.
 
 Do not place a real classroom PDS workspace inside this repository.
 
-## Planning documents
+## Documentation
 
-- [`docs/development-plan.md`](docs/development-plan.md) — suite-wide pilot-readiness and
-  development program.
-- [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data Suite visual
-  identity notes.
+- [`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md)
+  — normative suite-shell ownership and integration contract.
+- [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
+  pilot-readiness and development program.
+- [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
+  Suite visual identity notes.
 
 ## Data safety
 

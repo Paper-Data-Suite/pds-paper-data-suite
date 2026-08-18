@@ -50,8 +50,8 @@ Core or another PDS module. Security-sensitive orchestration must preserve the
 ownership, validation, path-safety, provenance, and authorization boundaries of
 the public services it composes.
 
-Exact suite-shell ownership and integration rules are established through the
-v0.1.0 architecture work and should be treated as authoritative once accepted.
+The normative ownership and integration contract is
+[`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md).
 
 ## Supported versions
 
