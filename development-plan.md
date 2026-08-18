@@ -144,12 +144,42 @@ Complete current work before opening large new implementation programs:
 
 Proceed in this order:
 
-1. Core v0.6.1 shared grouping-signal interchange.
-2. Paper Data Suite suite repository v0.1.0.
-3. Core v0.6.2 additive pilot-operations support, only where the suite implementation proves a gap.
-4. ScoreForm v0.11.0 teacher workflow efficiency.
-5. Quillan v0.10.0 review throughput and assignment reuse.
-6. Concord v0.3.0 group planning, templates, packets, and reusable activity workflows.
+                    PHASE 1 START
+                         │
+       ┌─────────────────┼──────────────────┬──────────────────┐
+       │                 │                  │                  │
+       ▼                 ▼                  ▼                  ▼
+ Core 0.6.1          PDS v0.1        ScoreForm v0.11     Quillan v0.10
+ #179–184            early work       #182–192            #379–390
+       │                 │                  │                  │
+       │                 │                  │                  │
+       │           Concord v0.3 independent work              │
+       │              #48, #57–64                             │
+       │                 │                                    │
+ Core #179 done ─────────┤                                    │
+       │                 ▼                                    │
+       │          Concord #50–52                              │
+       │                                                       │
+ Core #180–183 done                                          │
+       │                                                       │
+       ▼                                                       │
+ Concord signal work                                          │
+ #49, #53–56                                                  │
+       │                                                       │
+       └─────────────────┬─────────────────────────────────────┘
+                         │
+                    Core 0.6.2
+             shared provider/inventory APIs
+                         │
+              ┌──────────┼───────────┐
+              ▼          ▼           ▼
+         ScoreForm    Quillan     Concord
+          #193–194    #391–392    #67–68
+              │          │           │
+              └──────────┼───────────┘
+                         ▼
+                installed qualification
+                    + release audits
 
 Core should remain on the `0.6.x` compatibility line during this phase if the required changes are additive. Current consumers declare `pds-core>=0.6,<0.7`; an unnecessary Core 0.7 transition would force a simultaneous compatibility milestone in every module. Concord v0.3.0 should declare `pds-core>=0.6.1,<0.7` and may develop and qualify against synthetic, hand-authored signal sets without Meridian installed.
 
