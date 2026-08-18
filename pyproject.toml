@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paper-data-suite"
+dynamic = ["version"]
+description = "Suite-level orchestration and teacher convenience for Paper Data Suite."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Stephen Severino" }
+]
+dependencies = [
+    "pds-core>=0.6,<0.7",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "mypy",
+    "packaging",
+    "pytest",
+    "ruff",
+    "twine",
+]
+
+[project.scripts]
+pds = "paper_data_suite.cli:main"
+
+[project.urls]
+Documentation = "https://github.com/Paper-Data-Suite/pds-paper-data-suite/tree/main/docs"
+Repository = "https://github.com/Paper-Data-Suite/pds-paper-data-suite"
+
+[tool.setuptools.dynamic]
+version = { attr = "paper_data_suite._version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["paper_data_suite"]
+namespaces = false
+
+[tool.setuptools.package-data]
+paper_data_suite = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+explicit_package_bases = true
+files = ["paper_data_suite", "scripts"]
+
+[[tool.mypy.overrides]]
+module = ["pds_core", "pds_core.*"]
+follow_untyped_imports = true

@@ -4,20 +4,21 @@ Paper Data Suite is a local-first collection of interoperable classroom tools
 for paper-compatible evidence capture, review, scoring, grading/reporting,
 collaboration, portfolio curation, and teacher-controlled support workflows.
 
-This repository is the suite-level repository. Its first implementation
-milestone is intended to establish the `paper-data-suite` shell and `pds`
-command as a bounded orchestration layer over PDS Core and installed modules.
+This repository contains the suite-level orchestration package. The installable
+distribution is `paper-data-suite`, the import package is `paper_data_suite`,
+and the primary command is `pds`.
 
 ## Current status
 
-The suite shell is in initial pre-release development.
+The suite shell is in pre-release development at `0.1.0.dev0`.
 
-At this point, this repository contains planning and architecture documentation
-only. It is **not yet an installable Python package**, does not yet expose a
-`pds` command, and has no supported release.
+The package foundation is installable, but there is **no supported public
+v0.1.0 release yet**. The current `pds` command intentionally exposes only
+minimal help and version behavior. Operational suite commands are added by later
+v0.1.0 issues.
 
-The active v0.1.0 milestone will build the first runtime implementation within
-the ownership and integration boundaries established for the suite shell.
+The package requires Python 3.11 or newer and a compatible PDS Core 0.6.x
+installation.
 
 ## Architecture direction
 
@@ -33,14 +34,10 @@ directly mutating owner state.
 The normative contract is
 [`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md).
 
-## Development bootstrap
+## Development setup
 
-The initial development checkout uses Python 3.11 as the conservative baseline
-shared by the current PDS module releases. The installable package and its
-formal Python compatibility metadata will be established separately by the
-package-foundation issue.
-
-On Windows PowerShell:
+Create and activate a Python 3.11-or-newer virtual environment. On Windows
+PowerShell:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -48,8 +45,56 @@ py -3.11 -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-There is intentionally no `pip install -e .` step yet because this repository
-does not contain package metadata.
+Install a compatible official PDS Core 0.6.x wheel into the environment first.
+The exact suite release matrix and verified bootstrap workflow are defined by
+later v0.1.0 issues; do not infer exact suite qualification from the broad
+package dependency range alone.
+
+After Core is installed:
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+The current foundation commands are:
+
+```powershell
+pds
+pds --help
+pds --version
+
+python -m paper_data_suite
+python -m paper_data_suite --help
+python -m paper_data_suite --version
+```
+
+These commands do not create or select a workspace, discover sibling
+applications, or perform classroom-data workflows.
+
+## Development validation
+
+Run:
+
+```powershell
+python -m pytest
+python -m ruff check .
+python -m mypy
+python -m pip check
+
+Remove-Item .\dist -Recurse -Force -ErrorAction SilentlyContinue
+python -m build
+python -m twine check .\dist\*
+```
+
+Then validate and smoke-test the built wheel using a compatible Core wheel:
+
+```powershell
+python .\scripts\check_package.py <suite-wheel>
+python .\scripts\smoke_test_wheel.py <suite-wheel> <core-wheel>
+```
+
+The wheel smoke test creates an isolated environment and proves that the suite
+foundation works beside Core without requiring sibling PDS applications.
 
 Do not place a real classroom PDS workspace inside this repository.
 
