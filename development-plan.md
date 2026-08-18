@@ -144,42 +144,38 @@ Complete current work before opening large new implementation programs:
 
 Proceed in this order:
 
-                    PHASE 1 START
-                         │
-       ┌─────────────────┼──────────────────┬──────────────────┐
-       │                 │                  │                  │
-       ▼                 ▼                  ▼                  ▼
- Core 0.6.1          PDS v0.1        ScoreForm v0.11     Quillan v0.10
- #179–184            early work       #182–192            #379–390
-       │                 │                  │                  │
-       │                 │                  │                  │
-       │           Concord v0.3 independent work              │
-       │              #48, #57–64                             │
-       │                 │                                    │
- Core #179 done ─────────┤                                    │
-       │                 ▼                                    │
-       │          Concord #50–52                              │
-       │                                                       │
- Core #180–183 done                                          │
-       │                                                       │
-       ▼                                                       │
- Concord signal work                                          │
- #49, #53–56                                                  │
-       │                                                       │
-       └─────────────────┬─────────────────────────────────────┘
-                         │
-                    Core 0.6.2
-             shared provider/inventory APIs
-                         │
-              ┌──────────┼───────────┐
-              ▼          ▼           ▼
-         ScoreForm    Quillan     Concord
-          #193–194    #391–392    #67–68
-              │          │           │
-              └──────────┼───────────┘
-                         ▼
-                installed qualification
-                    + release audits
+                PHASE 1 — Establish the operational shell and improve existing producer workflows
+
+                           PHASE 1 START
+                                |
+   ┌──────────────┬─────────────┼───────────────┬───────────────┐
+   │              │             │               │               │
+   ▼              ▼             ▼               ▼               ▼
+Core 0.6.1     PDS v0.1     ScoreForm v0.11   Quillan v0.10   Concord (indep.)
+#179–184      (early work)   #182–192         #379–390        #48, #57–64
+
+   │
+   │
+   ├── Core #179 done
+   │       |
+   │       └───> Concord #50–52
+   │
+   ├── Core #180–183 done
+   │
+   └── Concord signal work
+        (#49, #53–56)
+           |
+           └──────────────────────────┐
+                                      ▼
+                           Core 0.6.2 — shared provider/inventory APIs
+                                      |
+                        ┌─────────────┼─────────────┬─────────────┐
+                        ▼             ▼             ▼             ▼
+                   ScoreForm      Quillan       Concord       Installed
+                 #193–194       #391–392       #67–68       qualification
+                                                           + release audits
+
+Final outcome: installed qualification + release audits
 
 Core should remain on the `0.6.x` compatibility line during this phase if the required changes are additive. Current consumers declare `pds-core>=0.6,<0.7`; an unnecessary Core 0.7 transition would force a simultaneous compatibility milestone in every module. Concord v0.3.0 should declare `pds-core>=0.6.1,<0.7` and may develop and qualify against synthetic, hand-authored signal sets without Meridian installed.
 
