@@ -143,39 +143,42 @@ Complete current work before opening large new implementation programs:
 ### Phase 1 — Establish the operational shell and improve existing producer workflows
 
 Proceed in this order:
+| Track / Milestone                          | Start at Phase 1 start?                            | Initial work                   | Dependency / unlock                                                                | Later work after unlock          | Final gate                                               |
+| ------------------------------------------ | -------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------- |
+| **Core v0.6.1**                            | Yes                                                | **#179–184**                   | —                                                                                  | —                                | Feeds Concord signal work and later qualification        |
+| **Paper Data Suite suite repo v0.1.0**     | Yes                                                | **early work**                 | None for early work                                                                | Continues alongside Core         | Participates in installed qualification + release audits |
+| **ScoreForm v0.11.0**                      | Yes                                                | **#182–192**                   | Wait for **Core v0.6.2 shared provider/inventory APIs** for later integration work | **#193–194**                     | Installed qualification + release audits                 |
+| **Quillan v0.10.0**                        | Yes                                                | **#379–390**                   | Wait for **Core v0.6.2 shared provider/inventory APIs** for later integration work | **#391–392**                     | Installed qualification + release audits                 |
+| **Concord v0.3.0 (independent work)**      | Yes                                                | **#48, #57–64**                | None for independent/template/packet work                                          | —                                | Later joins qualification flow                           |
+| **Concord v0.3.0 (GroupPlan foundations)** | After **Core #179**                                | **#50–52**                     | **Core #179 done**                                                                 | —                                | Later joins qualification flow                           |
+| **Concord v0.3.0 (signal-dependent work)** | After **Core #180–183**                            | **#49, #53–56**                | **Core #180–183 done**                                                             | —                                | Later joins qualification flow                           |
+| **Core v0.6.2**                            | After earlier Phase 1 progress identifies the need | Shared provider/inventory APIs | Receives requirements from PDS / ScoreForm / Quillan / Concord                     | Unlocks later integration issues | Enables final cross-module integration work              |
+| **Concord late integration**               | After **Core v0.6.2**                              | —                              | Wait for **Core v0.6.2 shared provider/inventory APIs**                            | **#67–68**                       | Installed qualification + release audits                 |
+| **Final outcome**                          | After all required unlocks                         | —                              | Installed qualification can run once the needed Core work is complete              | Release audits run last          | **Installed qualification + release audits**             |
 
-                PHASE 1 — Establish the operational shell and improve existing producer workflows
 
-                           PHASE 1 START
-                                |
-   ┌──────────────┬─────────────┼───────────────┬───────────────┐
-   │              │             │               │               │
-   ▼              ▼             ▼               ▼               ▼
-Core 0.6.1     PDS v0.1     ScoreForm v0.11   Quillan v0.10   Concord (indep.)
-#179–184      (early work)   #182–192         #379–390        #48, #57–64
 
-   │
-   │
-   ├── Core #179 done
-   │       |
-   │       └───> Concord #50–52
-   │
-   ├── Core #180–183 done
-   │
-   └── Concord signal work
-        (#49, #53–56)
-           |
-           └──────────────────────────┐
-                                      ▼
-                           Core 0.6.2 — shared provider/inventory APIs
-                                      |
-                        ┌─────────────┼─────────────┬─────────────┐
-                        ▼             ▼             ▼             ▼
-                   ScoreForm      Quillan       Concord       Installed
-                 #193–194       #391–392       #67–68       qualification
-                                                           + release audits
+Short ordered version
 
-Final outcome: installed qualification + release audits
+If you want a compact version directly under the table:
+
+Start in parallel:
+Core v0.6.1: #179–184
+PDS v0.1.0: early work
+ScoreForm v0.11.0: #182–192
+Quillan v0.10.0: #379–390
+Concord independent work: #48, #57–64
+When Core #179 is done:
+Concord: #50–52
+When Core #180–183 are done:
+Concord signal work: #49, #53–56
+Then complete Core v0.6.2 shared provider/inventory APIs
+After Core v0.6.2:
+ScoreForm: #193–194
+Quillan: #391–392
+Concord: #67–68
+Final outcome:
+Installed qualification + release audits
 
 Core should remain on the `0.6.x` compatibility line during this phase if the required changes are additive. Current consumers declare `pds-core>=0.6,<0.7`; an unnecessary Core 0.7 transition would force a simultaneous compatibility milestone in every module. Concord v0.3.0 should declare `pds-core>=0.6.1,<0.7` and may develop and qualify against synthetic, hand-authored signal sets without Meridian installed.
 
