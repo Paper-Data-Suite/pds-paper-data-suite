@@ -47,11 +47,12 @@ Repository = "https://github.com/Paper-Data-Suite/pds-paper-data-suite"
 version = { attr = "paper_data_suite._version.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["paper_data_suite"]
+include = ["paper_data_suite", "paper_data_suite.*"]
 namespaces = false
 
 [tool.setuptools.package-data]
 paper_data_suite = ["py.typed"]
+"paper_data_suite.data" = ["*.json"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

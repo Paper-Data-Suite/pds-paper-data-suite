@@ -170,6 +170,75 @@ print(json.dumps({
     _assert_clean_directory(cwd)
 
 
+def _assert_installed_compatibility_manifest(
+    python: Path,
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    expected_version: str,
+) -> None:
+    code = """
+import json
+import socket
+import sys
+import urllib.request
+
+def blocked_network(*args, **kwargs):
+    raise AssertionError("compatibility loading attempted network access")
+
+socket.create_connection = blocked_network
+urllib.request.urlopen = blocked_network
+urllib.request.urlretrieve = blocked_network
+
+from paper_data_suite.compatibility import load_release_compatibility_manifest
+
+manifest = load_release_compatibility_manifest()
+tracked = [
+    "pds_core",
+    "scoreform",
+    "quillan",
+    "concord",
+    "meridian",
+    "vitrine",
+]
+print(json.dumps({
+    "suite_version": manifest.suite.version,
+    "component_ids": [
+        component.component_id for component in manifest.components
+    ],
+    "loaded": {name: name in sys.modules for name in tracked},
+}))
+""".strip()
+    result = _run([str(python), "-c", code], cwd=cwd, env=env)
+    payload = cast(dict[str, object], json.loads(result.stdout))
+
+    if payload.get("suite_version") != expected_version:
+        raise SmokeTestError(
+            "Installed compatibility manifest version does not match wheel."
+        )
+    if payload.get("component_ids") != [
+        "concord",
+        "core",
+        "quillan",
+        "scoreform",
+        "vitrine",
+    ]:
+        raise SmokeTestError(
+            "Installed compatibility manifest component set changed."
+        )
+
+    loaded = cast(dict[str, bool], payload.get("loaded"))
+    unexpectedly_loaded = sorted(
+        name for name, value in loaded.items() if value
+    )
+    if unexpectedly_loaded:
+        raise SmokeTestError(
+            "Compatibility loading imported PDS owner packages: "
+            + ", ".join(unexpectedly_loaded)
+        )
+    _assert_clean_directory(cwd)
+
+
 def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
     """Install and exercise the suite wheel beside only Core."""
     if not suite_wheel.is_file():
@@ -227,6 +296,12 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
             python, cwd=run_directory, env=command_env
         )
         _assert_import_boundary(
+            python,
+            cwd=run_directory,
+            env=command_env,
+            expected_version=expected_version,
+        )
+        _assert_installed_compatibility_manifest(
             python,
             cwd=run_directory,
             env=command_env,

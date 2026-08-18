@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import json
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -25,6 +26,9 @@ REQUIRED_PACKAGE_FILES = frozenset(
         "paper_data_suite/__main__.py",
         "paper_data_suite/_version.py",
         "paper_data_suite/cli.py",
+        "paper_data_suite/compatibility.py",
+        "paper_data_suite/data/__init__.py",
+        "paper_data_suite/data/release_compatibility_v1.json",
         "paper_data_suite/py.typed",
     }
 )
@@ -186,6 +190,66 @@ def validate_wheel(path: Path) -> None:
         _validate_entry_points(
             wheel.read(entry_points_member).decode("utf-8")
         )
+
+        manifest_member = (
+            "paper_data_suite/data/release_compatibility_v1.json"
+        )
+        try:
+            manifest = json.loads(
+                wheel.read(manifest_member).decode("utf-8")
+            )
+        except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise PackageValidationError(
+                "Wheel compatibility manifest is missing or invalid."
+            ) from error
+
+        if not isinstance(manifest, dict):
+            raise PackageValidationError(
+                "Wheel compatibility manifest must be a JSON object."
+            )
+        if manifest.get("record_type") != (
+            "paper_data_suite_release_compatibility_manifest"
+        ):
+            raise PackageValidationError(
+                "Unexpected wheel compatibility manifest record type."
+            )
+        if manifest.get("contract_version") != "1":
+            raise PackageValidationError(
+                "Unexpected wheel compatibility manifest contract version."
+            )
+        suite = manifest.get("suite")
+        if not isinstance(suite, dict):
+            raise PackageValidationError(
+                "Wheel compatibility manifest has no suite object."
+            )
+        if suite.get("distribution") != EXPECTED_DISTRIBUTION:
+            raise PackageValidationError(
+                "Wheel compatibility manifest distribution disagrees."
+            )
+        if suite.get("version") != EXPECTED_VERSION:
+            raise PackageValidationError(
+                "Wheel compatibility manifest suite version disagrees."
+            )
+        components = manifest.get("components")
+        if not isinstance(components, list):
+            raise PackageValidationError(
+                "Wheel compatibility manifest components must be an array."
+            )
+        component_ids = [
+            item.get("component_id")
+            for item in components
+            if isinstance(item, dict)
+        ]
+        if component_ids != [
+            "concord",
+            "core",
+            "quillan",
+            "scoreform",
+            "vitrine",
+        ]:
+            raise PackageValidationError(
+                "Wheel compatibility manifest component set changed."
+            )
 
 
 def build_parser() -> argparse.ArgumentParser:

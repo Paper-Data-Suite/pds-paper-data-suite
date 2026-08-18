@@ -17,8 +17,31 @@ v0.1.0 release yet**. The current `pds` command intentionally exposes only
 minimal help and version behavior. Operational suite commands are added by later
 v0.1.0 issues.
 
-The package requires Python 3.11 or newer and a compatible PDS Core 0.6.x
-installation.
+The package metadata requires Python 3.11 or newer and
+`pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
+qualify every matching interpreter or component release for the suite.
+
+The package now carries a versioned machine-readable compatibility declaration.
+For the current development build, suite qualification is explicit and
+fail-closed:
+
+- suite-qualified Python: `>=3.11,<3.15`;
+- tested Python minors: 3.11, 3.12, 3.13, and 3.14;
+- required Core: `pds-core==0.6.0`;
+- optional qualified applications:
+  - `pds-concord==0.2.0`;
+  - `quillan==0.9.0`;
+  - `scoreform==0.10.0`;
+  - `pds-vitrine==0.2.0`.
+
+Each qualified component row binds to one exact official GitHub Release wheel
+and SHA-256 digest. An installed version absent from the active declaration is
+not silently treated as compatible. Meridian is not currently qualified by this
+development manifest because its audited source identity remains a development
+version, and Portia does not yet have an executable application release.
+
+The normative manifest contract is
+[`docs/architecture/release-compatibility-manifest.md`](docs/architecture/release-compatibility-manifest.md).
 
 ## Architecture direction
 
@@ -31,7 +54,7 @@ canonical records, business rules, and teacher workflows. The shell must use
 public Core services and supported component boundaries rather than copying or
 directly mutating owner state.
 
-The normative contract is
+The normative ownership and integration contract is
 [`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md).
 
 ## Development setup
@@ -46,9 +69,9 @@ python -m pip install --upgrade pip
 ```
 
 Install a compatible official PDS Core 0.6.x wheel into the environment first.
-The exact suite release matrix and verified bootstrap workflow are defined by
-later v0.1.0 issues; do not infer exact suite qualification from the broad
-package dependency range alone.
+For the current suite development manifest, the exact qualified Core release is
+0.6.0. Do not infer exact suite qualification from the broad package dependency
+range alone.
 
 After Core is installed:
 
@@ -80,21 +103,31 @@ python -m pytest
 python -m ruff check .
 python -m mypy
 python -m pip check
+python .\scripts\validate_compatibility_manifest.py
 
 Remove-Item .\dist -Recurse -Force -ErrorAction SilentlyContinue
 python -m build
 python -m twine check .\dist\*
 ```
 
-Then validate and smoke-test the built wheel using a compatible Core wheel:
+Then validate and smoke-test the built wheel using the exact Core 0.6.0 wheel:
 
 ```powershell
 python .\scripts\check_package.py <suite-wheel>
 python .\scripts\smoke_test_wheel.py <suite-wheel> <core-wheel>
 ```
 
-The wheel smoke test creates an isolated environment and proves that the suite
-foundation works beside Core without requiring sibling PDS applications.
+To authenticate all exact component wheels declared by the manifest:
+
+```powershell
+python .\scripts\verify_compatibility_artifacts.py `
+  --artifact-dir <directory-containing-declared-wheels>
+```
+
+The built-wheel smoke test creates an isolated environment and proves that the
+bundled compatibility resource loads beside Core without requiring or importing
+sibling PDS applications. The artifact verifier inspects release wheels directly;
+it does not install or import them.
 
 Do not place a real classroom PDS workspace inside this repository.
 
@@ -102,6 +135,8 @@ Do not place a real classroom PDS workspace inside this repository.
 
 - [`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md)
   — normative suite-shell ownership and integration contract.
+- [`docs/architecture/release-compatibility-manifest.md`](docs/architecture/release-compatibility-manifest.md)
+  — normative machine-readable suite release-qualification contract.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
