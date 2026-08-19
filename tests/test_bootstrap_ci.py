@@ -66,3 +66,14 @@ def test_bootstrap_acceptance_checks_no_workspace_or_repo_residue() -> None:
     assert "workspace-shaped working-directory state" in block
     assert "git diff --check" in block
     assert "git status --porcelain --untracked-files=all" in block
+
+def test_release_artifact_audit_installs_suite_tooling_before_authentication() -> None:
+    text = _workflow_text()
+    start = text.index("  release-artifacts:")
+    end = text.index("  bootstrap-windows:")
+    block = text[start:end]
+
+    install_index = block.index("Install suite package for audit tooling")
+    auth_index = block.index("Authenticate declared release wheels")
+    assert install_index < auth_index
+    assert "python -m pip install --no-deps -e ." in block

@@ -175,6 +175,9 @@ jobs:
               )
               urlretrieve(url, destination / release["wheel"])
 
+      - name: Install suite package for audit tooling
+        run: python -m pip install --no-deps -e .
+
       - name: Authenticate declared release wheels
         shell: pwsh
         run: |

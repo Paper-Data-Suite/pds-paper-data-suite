@@ -155,11 +155,15 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
     fake_wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
     fake_wheel.write_bytes(b"not an authenticated suite wheel")
     target = tmp_path / "must-not-exist"
-    result = subprocess.run(
+    command = [
+        executable,
+        "-NoProfile",
+        "-NonInteractive",
+    ]
+    if host == "powershell":
+        command.extend(["-ExecutionPolicy", "Bypass"])
+    command.extend(
         [
-            executable,
-            "-NoProfile",
-            "-NonInteractive",
             "-File",
             str(_SCRIPT),
             "-SuiteWheel",
@@ -170,7 +174,10 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
             "definitely-not-a-python-command",
             "-EnvironmentPath",
             str(target),
-        ],
+        ]
+    )
+    result = subprocess.run(
+        command,
         check=False,
         capture_output=True,
         text=True,
