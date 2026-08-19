@@ -155,6 +155,24 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
     fake_wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
     fake_wheel.write_bytes(b"not an authenticated suite wheel")
     target = tmp_path / "must-not-exist"
+
+    def powershell_literal(value: object) -> str:
+        return "'" + str(value).replace("'", "''") + "'"
+
+    invocation = " ".join(
+        [
+            "&",
+            powershell_literal(_SCRIPT),
+            "-SuiteWheel",
+            powershell_literal(fake_wheel),
+            "-SuiteWheelSha256",
+            "0" * 64,
+            "-PythonExe",
+            powershell_literal("definitely-not-a-python-command"),
+            "-EnvironmentPath",
+            powershell_literal(target),
+        ]
+    )
     command = [
         executable,
         "-NoProfile",
@@ -162,20 +180,7 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
     ]
     if host == "powershell":
         command.extend(["-ExecutionPolicy", "Bypass"])
-    command.extend(
-        [
-            "-File",
-            str(_SCRIPT),
-            "-SuiteWheel",
-            str(fake_wheel),
-            "-SuiteWheelSha256",
-            "0" * 64,
-            "-PythonExe",
-            "definitely-not-a-python-command",
-            "-EnvironmentPath",
-            str(target),
-        ]
-    )
+    command.extend(["-Command", invocation])
     result = subprocess.run(
         command,
         check=False,
@@ -183,8 +188,11 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
         text=True,
     )
 
-    assert result.returncode == 4
+    expected_returncode = 1 if host == "powershell" else 4
+    assert result.returncode == expected_returncode
+    assert "Suite wheel SHA-256 mismatch:" in result.stderr
     assert "No suite code was executed" in result.stderr
+    assert "definitely-not-a-python-command" not in result.stderr
     assert not target.exists()
 
 
