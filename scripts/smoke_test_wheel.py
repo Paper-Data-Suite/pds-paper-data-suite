@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import venv
 import zipfile
@@ -170,6 +171,29 @@ print(json.dumps({
     _assert_clean_directory(cwd)
 
 
+def _assert_installed_package_location(
+    python: Path,
+    *,
+    environment: Path,
+    cwd: Path,
+    env: Mapping[str, str],
+) -> None:
+    code = (
+        "from pathlib import Path; import paper_data_suite; "
+        "print(Path(paper_data_suite.__file__).resolve())"
+    )
+    result = _run([str(python), "-c", code], cwd=cwd, env=env)
+    installed_path = Path(result.stdout.strip()).resolve()
+    try:
+        installed_path.relative_to(environment.resolve())
+    except ValueError as error:
+        raise SmokeTestError(
+            "Smoke test imported paper_data_suite outside the isolated environment: "
+            f"{installed_path}"
+        ) from error
+    _assert_clean_directory(cwd)
+
+
 def _assert_installed_compatibility_manifest(
     python: Path,
     *,
@@ -239,8 +263,85 @@ print(json.dumps({
     _assert_clean_directory(cwd)
 
 
+def _assert_doctor_output(output: str) -> None:
+    required = (
+        "Paper Data Suite doctor",
+        "Runtime",
+        "Suite",
+        "Packages",
+        "Dependencies",
+        "Entry points",
+        "Core",
+        "Workspace",
+        "Core registry",
+        "Providers",
+        "Modules",
+        "Overall",
+        "No accessible workspace currently exists at the resolved path.",
+        "Routing/publication provider compatibility has reduced diagnostic fidelity.",
+        "Shared module-reported readiness is not available.",
+    )
+    missing = [fragment for fragment in required if fragment not in output]
+    if missing:
+        raise SmokeTestError(
+            "Installed doctor output is missing expected content: "
+            + ", ".join(missing)
+        )
+
+
+def _assert_doctor_command(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    missing_workspace: Path,
+) -> None:
+    if missing_workspace.exists():
+        raise SmokeTestError(
+            f"Synthetic absent workspace unexpectedly exists: {missing_workspace}"
+        )
+    result = _run(command, cwd=cwd, env=env)
+    _assert_doctor_output(result.stdout)
+    if missing_workspace.exists():
+        raise SmokeTestError("pds doctor created the synthetic absent workspace.")
+    _assert_clean_directory(cwd)
+
+
+def _assert_doctor_no_network(
+    python: Path,
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    missing_workspace: Path,
+) -> None:
+    code = """
+import socket
+import urllib.request
+
+
+def blocked_network(*args, **kwargs):
+    raise AssertionError("pds doctor attempted network access")
+
+
+socket.create_connection = blocked_network
+urllib.request.urlopen = blocked_network
+urllib.request.urlretrieve = blocked_network
+
+from paper_data_suite.cli import main
+raise SystemExit(main(("doctor",)))
+""".strip()
+    _assert_doctor_command(
+        [str(python), "-c", code],
+        cwd=cwd,
+        env=env,
+        missing_workspace=missing_workspace,
+    )
+
+
 def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
     """Install and exercise the suite wheel beside only Core."""
+    suite_wheel = suite_wheel.resolve()
+    core_wheel = core_wheel.resolve()
     if not suite_wheel.is_file():
         raise SmokeTestError(f"Suite wheel does not exist: {suite_wheel}")
     if not core_wheel.is_file():
@@ -252,6 +353,7 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
         temp_root = Path(temporary)
         environment = temp_root / "venv"
         run_directory = temp_root / "run"
+        missing_workspace = run_directory / "synthetic-missing-workspace"
         run_directory.mkdir()
 
         venv.EnvBuilder(with_pip=True).create(environment)
@@ -259,7 +361,10 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
 
         command_env = dict(os.environ)
         command_env["PYTHONDONTWRITEBYTECODE"] = "1"
+        command_env["PYTHONNOUSERSITE"] = "1"
         command_env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
+        command_env["PIP_NO_INDEX"] = "1"
+        command_env["PDS_WORKSPACE_ROOT"] = str(missing_workspace)
         command_env.pop("PYTHONPATH", None)
 
         _run(
@@ -301,6 +406,12 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
             env=command_env,
             expected_version=expected_version,
         )
+        _assert_installed_package_location(
+            python,
+            environment=environment,
+            cwd=run_directory,
+            env=command_env,
+        )
         _assert_installed_compatibility_manifest(
             python,
             cwd=run_directory,
@@ -331,6 +442,19 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
             raise SmokeTestError("Module help does not identify pds.")
         _assert_clean_directory(run_directory)
 
+        _assert_doctor_command(
+            [str(python), "-m", "paper_data_suite", "doctor"],
+            cwd=run_directory,
+            env=command_env,
+            missing_workspace=missing_workspace,
+        )
+        _assert_doctor_no_network(
+            python,
+            cwd=run_directory,
+            env=command_env,
+            missing_workspace=missing_workspace,
+        )
+
         scripts = _scripts_directory(
             python, cwd=run_directory, env=command_env
         )
@@ -358,31 +482,36 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
             raise SmokeTestError("Installed pds help does not identify pds.")
         _assert_clean_directory(run_directory)
 
-        console_bare = _run(
-            [str(launcher)],
+        _assert_doctor_command(
+            [str(launcher), "doctor"],
             cwd=run_directory,
             env=command_env,
+            missing_workspace=missing_workspace,
         )
-        if "usage: pds" not in console_bare.stdout:
-            raise SmokeTestError("Bare installed pds did not print help.")
-        _assert_clean_directory(run_directory)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the smoke-test parser."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("suite_wheel")
-    parser.add_argument("core_wheel")
+    """Build the installed-wheel smoke-test argument parser."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Install the built Paper Data Suite wheel beside an exact Core wheel "
+            "and exercise installed package/CLI acceptance outside the source tree."
+        )
+    )
+    parser.add_argument("suite_wheel", type=Path)
+    parser.add_argument("core_wheel", type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the clean-wheel smoke test."""
-    args = build_parser().parse_args(argv)
-    suite_wheel = Path(cast(str, args.suite_wheel)).resolve()
-    core_wheel = Path(cast(str, args.core_wheel)).resolve()
-    smoke_test(suite_wheel, core_wheel)
-    print(f"Smoke-tested suite wheel: {suite_wheel}")
+    """Run the built-wheel smoke test from the command line."""
+    arguments = build_parser().parse_args(argv)
+    try:
+        smoke_test(arguments.suite_wheel, arguments.core_wheel)
+    except SmokeTestError as error:
+        print(f"Smoke test failed: {error}", file=sys.stderr)
+        return 1
+    print("Smoke test passed.")
     return 0
 
 

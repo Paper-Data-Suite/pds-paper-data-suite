@@ -12,10 +12,10 @@ and the primary command is `pds`.
 
 The suite shell is in pre-release development at `0.1.0.dev0`.
 
-The package foundation is installable, but there is **no supported public
-v0.1.0 release yet**. The current `pds` command intentionally exposes only
-minimal help and version behavior. Operational suite commands are added by later
-v0.1.0 issues.
+There is **no supported public v0.1.0 release yet**. The package foundation is
+installable and the first operational shell command, `pds doctor`, provides
+read-only environment diagnostics. Additional teacher-facing workflows are added
+by later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
 `pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
@@ -79,6 +79,35 @@ The normative operational contract, trust hierarchy, apply behavior, failure
 semantics, and recovery boundaries are documented in
 [`docs/operations/windows-bootstrap.md`](docs/operations/windows-bootstrap.md).
 
+## Environment diagnostics
+
+Run the read-only suite health check with:
+
+```powershell
+pds doctor
+```
+
+To inspect one workspace without saving or initializing it:
+
+```powershell
+pds doctor --workspace "D:\School\Paper Data Suite"
+```
+
+`doctor` compares the running Python and installed suite/component metadata with
+the exact bundled compatibility manifest, checks declared public entry points,
+Python dependency consistency, applicable external command prerequisites, and
+uses public Core services for workspace, active-school-year, and registry health.
+It does not install, update, create, repair, or modify those resources.
+
+The current qualified Core contract does not expose failure-isolated provider
+execution diagnostics or shared module-reported readiness, so those deeper
+capabilities are reported honestly as `SKIP` rather than being reimplemented in
+the suite.
+
+The operational contract, status/exit semantics, privacy boundary, and
+installed-wheel acceptance requirements are documented in
+[`docs/operations/pds-doctor.md`](docs/operations/pds-doctor.md).
+
 ## Architecture direction
 
 The suite shell is an orchestration and teacher-convenience layer, not a second
@@ -115,20 +144,24 @@ After Core is installed:
 python -m pip install -e ".[dev]"
 ```
 
-The current foundation commands are:
+The current shell commands are:
 
 ```powershell
 pds
 pds --help
 pds --version
+pds doctor
+pds doctor --workspace <path>
 
 python -m paper_data_suite
 python -m paper_data_suite --help
 python -m paper_data_suite --version
+python -m paper_data_suite doctor
 ```
 
-These commands do not create or select a workspace, discover sibling
-applications, or perform classroom-data workflows.
+The help/version commands and `doctor` do not create or select a workspace or
+perform classroom-data mutation. `doctor --workspace` is an invocation-scoped
+inspection override only.
 
 ## Development validation
 
@@ -160,10 +193,12 @@ python .\scripts\verify_compatibility_artifacts.py `
   --artifact-dir <directory-containing-declared-wheels>
 ```
 
-The built-wheel smoke test creates an isolated environment and proves that the
-bundled compatibility resource loads beside Core without requiring or importing
-sibling PDS applications. The artifact verifier inspects release wheels directly;
-it does not install or import them.
+The built-wheel smoke test creates an isolated environment, removes source-tree
+shadowing inputs, proves that the bundled compatibility resource loads beside
+Core without requiring sibling PDS applications, and exercises installed
+`python -m paper_data_suite doctor` and `pds doctor` against a synthetic absent
+workspace path. The artifact verifier inspects release wheels directly; it does
+not install or import them.
 
 Do not place a real classroom PDS workspace inside this repository.
 
@@ -175,6 +210,8 @@ Do not place a real classroom PDS workspace inside this repository.
   — normative machine-readable suite release-qualification contract.
 - [`docs/operations/windows-bootstrap.md`](docs/operations/windows-bootstrap.md)
   — normative verified Windows bootstrap and exact update-planning workflow.
+- [`docs/operations/pds-doctor.md`](docs/operations/pds-doctor.md)
+  — read-only suite environment diagnostics, statuses, privacy, and acceptance.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
