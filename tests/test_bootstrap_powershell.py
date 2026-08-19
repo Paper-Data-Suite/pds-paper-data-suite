@@ -159,28 +159,52 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
     def powershell_literal(value: object) -> str:
         return "'" + str(value).replace("'", "''") + "'"
 
-    invocation = " ".join(
-        [
-            "&",
-            powershell_literal(_SCRIPT),
-            "-SuiteWheel",
-            powershell_literal(fake_wheel),
-            "-SuiteWheelSha256",
-            "0" * 64,
-            "-PythonExe",
-            powershell_literal("definitely-not-a-python-command"),
-            "-EnvironmentPath",
-            powershell_literal(target),
-        ]
-    )
-    command = [
-        executable,
-        "-NoProfile",
-        "-NonInteractive",
+    common_arguments = [
+        "-SuiteWheel",
+        str(fake_wheel),
+        "-SuiteWheelSha256",
+        "0" * 64,
+        "-PythonExe",
+        "definitely-not-a-python-command",
+        "-EnvironmentPath",
+        str(target),
     ]
     if host == "powershell":
-        command.extend(["-ExecutionPolicy", "Bypass"])
-    command.extend(["-Command", invocation])
+        invocation = " ".join(
+            [
+                "&",
+                powershell_literal(_SCRIPT),
+                "-SuiteWheel",
+                powershell_literal(fake_wheel),
+                "-SuiteWheelSha256",
+                powershell_literal("0" * 64),
+                "-PythonExe",
+                powershell_literal("definitely-not-a-python-command"),
+                "-EnvironmentPath",
+                powershell_literal(target),
+            ]
+        )
+        command = [
+            executable,
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            invocation,
+        ]
+        expected_returncode = 1
+    else:
+        command = [
+            executable,
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(_SCRIPT),
+            *common_arguments,
+        ]
+        expected_returncode = 4
+
     result = subprocess.run(
         command,
         check=False,
@@ -188,7 +212,6 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
         text=True,
     )
 
-    expected_returncode = 1 if host == "powershell" else 4
     assert result.returncode == expected_returncode
     assert "Suite wheel SHA-256 mismatch:" in result.stderr
     assert "No suite code was executed" in result.stderr
