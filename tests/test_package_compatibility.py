@@ -17,8 +17,14 @@ _PACKAGE_FILES = (
     "paper_data_suite/__init__.py",
     "paper_data_suite/__main__.py",
     "paper_data_suite/_version.py",
+    "paper_data_suite/artifact_verification.py",
+    "paper_data_suite/bootstrap.py",
+    "paper_data_suite/bootstrap_artifacts.py",
+    "paper_data_suite/bootstrap_cli.py",
+    "paper_data_suite/bootstrap_installation.py",
     "paper_data_suite/cli.py",
     "paper_data_suite/compatibility.py",
+    "paper_data_suite/environment_inspection.py",
     "paper_data_suite/data/__init__.py",
     "paper_data_suite/py.typed",
 )
@@ -29,6 +35,7 @@ def _build_wheel(
     *,
     include_manifest: bool = True,
     manifest_version: str | None = None,
+    omitted_package_file: str | None = None,
 ) -> None:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     if manifest_version is not None:
@@ -54,7 +61,8 @@ def _build_wheel(
 
     with zipfile.ZipFile(path, "w") as wheel:
         for member in _PACKAGE_FILES:
-            wheel.writestr(member, "")
+            if member != omitted_package_file:
+                wheel.writestr(member, "")
         if include_manifest:
             wheel.writestr(
                 "paper_data_suite/data/release_compatibility_v1.json",
@@ -99,5 +107,21 @@ def test_package_validator_rejects_manifest_version_drift(
     with pytest.raises(
         PackageValidationError,
         match="manifest suite version",
+    ):
+        validate_wheel(wheel)
+
+
+def test_package_validator_requires_bootstrap_runtime_modules(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/bootstrap_installation.py",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
     ):
         validate_wheel(wheel)

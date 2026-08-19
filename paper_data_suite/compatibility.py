@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -765,10 +766,27 @@ def parse_release_compatibility_manifest(
     )
 
 
+def release_compatibility_manifest_bytes() -> bytes:
+    """Return the exact bundled compatibility-manifest resource bytes."""
+    resource = resources.files("paper_data_suite").joinpath(*_RESOURCE_PARTS)
+    return resource.read_bytes()
+
+
+def release_compatibility_manifest_sha256() -> str:
+    """Return SHA-256 for the exact bundled compatibility-manifest bytes."""
+    return hashlib.sha256(release_compatibility_manifest_bytes()).hexdigest()
+
+
 def load_release_compatibility_manifest() -> ReleaseCompatibilityManifest:
     """Load the bundled active compatibility manifest without environment probing."""
-    resource = resources.files("paper_data_suite").joinpath(*_RESOURCE_PARTS)
-    return parse_release_compatibility_manifest(resource.read_text(encoding="utf-8"))
+    raw = release_compatibility_manifest_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise CompatibilityManifestError(
+            "compatibility manifest must be valid UTF-8"
+        ) from error
+    return parse_release_compatibility_manifest(text)
 
 
 __all__ = (
@@ -782,4 +800,6 @@ __all__ = (
     "SuiteCompatibility",
     "load_release_compatibility_manifest",
     "parse_release_compatibility_manifest",
+    "release_compatibility_manifest_bytes",
+    "release_compatibility_manifest_sha256",
 )
