@@ -9,15 +9,17 @@ from pathlib import Path
 
 import pytest
 
+from paper_data_suite.artifact_verification import (
+    ArtifactVerificationError,
+    normalize_sha256,
+    verify_file_sha256,
+)
 from paper_data_suite.compatibility import (
     ComponentCompatibility,
     EntryPointExpectation,
     load_release_compatibility_manifest,
 )
-from scripts.verify_compatibility_artifacts import (
-    ArtifactVerificationError,
-    verify_component_wheel,
-)
+from scripts.verify_compatibility_artifacts import verify_component_wheel
 
 
 class _CaseSensitiveConfigParser(configparser.ConfigParser):
@@ -80,6 +82,34 @@ def _with_test_digest(
 ) -> ComponentCompatibility:
     release = replace(component.release, sha256=digest)
     return replace(component, release=release)
+
+
+def test_explicit_sha256_accepts_uppercase_input(tmp_path: Path) -> None:
+    artifact = tmp_path / "suite.whl"
+    artifact.write_bytes(b"authenticated suite bytes")
+    expected = hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+    assert verify_file_sha256(artifact, expected.upper()) == expected
+    assert normalize_sha256(expected.upper()) == expected
+
+
+def test_explicit_sha256_rejects_mismatch(tmp_path: Path) -> None:
+    artifact = tmp_path / "suite.whl"
+    artifact.write_bytes(b"wrong bytes")
+
+    with pytest.raises(ArtifactVerificationError, match="SHA-256 mismatch"):
+        verify_file_sha256(artifact, "0" * 64)
+
+
+def test_explicit_sha256_rejects_malformed_digest(tmp_path: Path) -> None:
+    artifact = tmp_path / "suite.whl"
+    artifact.write_bytes(b"bytes")
+
+    with pytest.raises(
+        ArtifactVerificationError,
+        match="exactly 64 hexadecimal",
+    ):
+        verify_file_sha256(artifact, "not-a-sha256")
 
 
 def test_exact_component_wheel_passes(tmp_path: Path) -> None:

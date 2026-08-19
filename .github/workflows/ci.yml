@@ -196,3 +196,389 @@ jobs:
             $residue
             throw "Release-artifact audit left repository residue."
           }
+
+  bootstrap-windows:
+    runs-on: windows-latest
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure bootstrap acceptance paths
+        shell: pwsh
+        run: |
+          $artifactDirectory = Join-Path `
+            $env:RUNNER_TEMP `
+            "pds bootstrap component artifacts"
+          $distDirectory = Join-Path `
+            $env:RUNNER_TEMP `
+            "pds bootstrap suite dist"
+          $targetEnvironment = Join-Path `
+            $env:RUNNER_TEMP `
+            "pds bootstrap target env"
+          $acceptanceCwd = Join-Path `
+            $env:RUNNER_TEMP `
+            "pds bootstrap empty cwd"
+
+          New-Item -ItemType Directory -Force -Path $artifactDirectory |
+            Out-Null
+          New-Item -ItemType Directory -Force -Path $distDirectory |
+            Out-Null
+          New-Item -ItemType Directory -Force -Path $acceptanceCwd |
+            Out-Null
+
+          "PDS_BOOTSTRAP_ARTIFACT_DIR=$artifactDirectory" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PDS_BOOTSTRAP_DIST_DIR=$distDirectory" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PDS_BOOTSTRAP_TARGET=$targetEnvironment" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PDS_BOOTSTRAP_ACCEPTANCE_CWD=$acceptanceCwd" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Download exact declared component wheels
+        shell: python
+        run: |
+          import json
+          import os
+          from pathlib import Path
+          from urllib.request import urlretrieve
+
+          manifest_path = (
+              Path("paper_data_suite")
+              / "data"
+              / "release_compatibility_v1.json"
+          )
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          destination = Path(os.environ["PDS_BOOTSTRAP_ARTIFACT_DIR"])
+
+          for component in manifest["components"]:
+              release = component["release"]
+              url = (
+                  f"https://github.com/{component['repository']}"
+                  f"/releases/download/{release['tag']}/{release['wheel']}"
+              )
+              urlretrieve(url, destination / release["wheel"])
+
+      - name: Build suite wheel and external trust input
+        shell: pwsh
+        run: |
+          python -m pip install build twine packaging
+          python -m build --outdir "$env:PDS_BOOTSTRAP_DIST_DIR"
+          python -m twine check "$env:PDS_BOOTSTRAP_DIST_DIR/*"
+
+          $wheels = @(
+            Get-ChildItem `
+              -LiteralPath $env:PDS_BOOTSTRAP_DIST_DIR `
+              -Filter "*.whl" `
+              -File
+          )
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one suite wheel; found $($wheels.Count)."
+          }
+
+          $suiteWheel = $wheels[0].FullName
+          python scripts/check_package.py "$suiteWheel"
+
+          $suiteSha256 = (
+            Get-FileHash -Algorithm SHA256 -LiteralPath $suiteWheel
+          ).Hash.ToLowerInvariant()
+
+          "PDS_BOOTSTRAP_SUITE_WHEEL=$suiteWheel" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PDS_BOOTSTRAP_SUITE_SHA256=$suiteSha256" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prove plan mode is non-mutating
+        shell: pwsh
+        run: |
+          $bootstrapScript = (
+            Resolve-Path -LiteralPath scripts/bootstrap_windows.ps1
+          ).Path
+
+          Push-Location $env:PDS_BOOTSTRAP_ACCEPTANCE_CWD
+          try {
+            $planOutput = @(
+              & $bootstrapScript `
+                -SuiteWheel $env:PDS_BOOTSTRAP_SUITE_WHEEL `
+                -SuiteWheelSha256 $env:PDS_BOOTSTRAP_SUITE_SHA256 `
+                -EnvironmentPath $env:PDS_BOOTSTRAP_TARGET `
+                -AllComponents `
+                -ArtifactDirectory $env:PDS_BOOTSTRAP_ARTIFACT_DIR `
+                *>&1
+            )
+            $planExit = $LASTEXITCODE
+          }
+          finally {
+            Pop-Location
+          }
+
+          $planText = $planOutput -join [Environment]::NewLine
+          $planText
+          if ($planExit -ne 0) {
+            throw "Plan-only bootstrap failed with exit code $planExit."
+          }
+          if (Test-Path -LiteralPath $env:PDS_BOOTSTRAP_TARGET) {
+            throw "Plan mode created the requested target environment."
+          }
+          if (@(
+            Get-ChildItem `
+              -LiteralPath $env:PDS_BOOTSTRAP_ACCEPTANCE_CWD `
+              -Force
+          ).Count -ne 0) {
+            throw "Plan mode created working-directory state."
+          }
+
+          $expected = @(
+            "PDS Core 0.6.0: install_missing",
+            "Paper Data Suite 0.1.0.dev0: install_missing",
+            "Concord 0.2.0: install_missing",
+            "Quillan 0.9.0: install_missing",
+            "ScoreForm 0.10.0: install_missing",
+            "Vitrine 0.2.0: install_missing",
+            "No changes have been made."
+          )
+          foreach ($fragment in $expected) {
+            if (-not $planText.Contains($fragment)) {
+              throw "Plan output is missing expected fragment: $fragment"
+            }
+          }
+
+      - name: Apply exact all-component composition
+        shell: pwsh
+        run: |
+          $bootstrapScript = (
+            Resolve-Path -LiteralPath scripts/bootstrap_windows.ps1
+          ).Path
+
+          Push-Location $env:PDS_BOOTSTRAP_ACCEPTANCE_CWD
+          try {
+            $applyOutput = @(
+              & $bootstrapScript `
+                -SuiteWheel $env:PDS_BOOTSTRAP_SUITE_WHEEL `
+                -SuiteWheelSha256 $env:PDS_BOOTSTRAP_SUITE_SHA256 `
+                -EnvironmentPath $env:PDS_BOOTSTRAP_TARGET `
+                -AllComponents `
+                -ArtifactDirectory $env:PDS_BOOTSTRAP_ARTIFACT_DIR `
+                -Apply `
+                -Yes `
+                *>&1
+            )
+            $applyExit = $LASTEXITCODE
+          }
+          finally {
+            Pop-Location
+          }
+
+          $applyText = $applyOutput -join [Environment]::NewLine
+          $applyText
+          if ($applyExit -ne 0) {
+            throw "Bootstrap apply failed with exit code $applyExit."
+          }
+          if (-not (
+            Test-Path -LiteralPath $env:PDS_BOOTSTRAP_TARGET -PathType Container
+          )) {
+            throw "Bootstrap apply did not create the target environment."
+          }
+          if (-not $applyText.Contains("Bootstrap completed successfully.")) {
+            throw "Bootstrap apply did not report successful finalization."
+          }
+          if (@(
+            Get-ChildItem `
+              -LiteralPath $env:PDS_BOOTSTRAP_ACCEPTANCE_CWD `
+              -Force
+          ).Count -ne 0) {
+            throw "Bootstrap created workspace-shaped working-directory state."
+          }
+
+      - name: Verify installed composition and import roots
+        shell: pwsh
+        run: |
+          $targetPython = Join-Path `
+            $env:PDS_BOOTSTRAP_TARGET `
+            "Scripts\python.exe"
+          $targetPds = Join-Path `
+            $env:PDS_BOOTSTRAP_TARGET `
+            "Scripts\pds.exe"
+          $markerPath = Join-Path `
+            $env:PDS_BOOTSTRAP_TARGET `
+            ".pds-suite-environment.json"
+          $ownershipSentinel = Join-Path `
+            $env:PDS_BOOTSTRAP_TARGET `
+            ".pds-bootstrap-owned.tmp"
+
+          & $targetPython -m pip check
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed target failed pip check."
+          }
+
+          $pdsVersion = (& $targetPds --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $pdsVersion -ne "pds 0.1.0.dev0") {
+            throw "Unexpected installed pds version: $pdsVersion"
+          }
+
+          if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+            throw "Successful target has no environment marker."
+          }
+          if (Test-Path -LiteralPath $ownershipSentinel) {
+            throw "Bootstrap ownership sentinel remained after success."
+          }
+
+          $marker = Get-Content -LiteralPath $markerPath -Raw |
+            ConvertFrom-Json
+          $markerProperties = @(
+            $marker.PSObject.Properties.Name | Sort-Object
+          )
+          $expectedMarkerProperties = @(
+            "compatibility_manifest_sha256",
+            "contract_version",
+            "record_type",
+            "suite_version"
+          ) | Sort-Object
+          if (
+            (Compare-Object $markerProperties $expectedMarkerProperties).Count `
+              -ne 0
+          ) {
+            throw "Environment marker contains unexpected fields."
+          }
+          if (
+            $marker.record_type -ne "paper_data_suite_environment" -or
+            $marker.contract_version -ne "1" -or
+            $marker.suite_version -ne "0.1.0.dev0"
+          ) {
+            throw "Environment marker identity is invalid."
+          }
+          if ($marker.compatibility_manifest_sha256 -notmatch '^[0-9a-f]{64}$') {
+            throw "Environment marker manifest digest is invalid."
+          }
+
+          $validationCode = @'
+          import importlib
+          import importlib.metadata as metadata
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path(os.environ["PDS_BOOTSTRAP_TARGET"]).resolve()
+          site_packages = (target / "Lib" / "site-packages").resolve()
+          expected = {
+              "paper-data-suite": ("0.1.0.dev0", "paper_data_suite"),
+              "pds-core": ("0.6.0", "pds_core"),
+              "pds-concord": ("0.2.0", "concord"),
+              "quillan": ("0.9.0", "quillan"),
+              "scoreform": ("0.10.0", "scoreform"),
+              "pds-vitrine": ("0.2.0", "vitrine"),
+          }
+          result = {}
+          for distribution, (version, import_name) in expected.items():
+              installed = metadata.version(distribution)
+              if installed != version:
+                  raise SystemExit(
+                      f"{distribution}: expected {version}, got {installed}"
+                  )
+              module = importlib.import_module(import_name)
+              raw_location = getattr(module, "__file__", None)
+              if raw_location is None:
+                  raise SystemExit(f"{import_name}: no import file")
+              location = Path(raw_location).resolve()
+              if not location.is_relative_to(site_packages):
+                  raise SystemExit(
+                      f"{import_name}: import outside target: {location}"
+                  )
+              result[distribution] = {
+                  "version": installed,
+                  "import_path": str(location),
+              }
+          print(json.dumps(result, sort_keys=True))
+          '@
+
+          $installedJson = & $targetPython -I -c $validationCode
+          if ($LASTEXITCODE -ne 0) {
+            throw "Exact installed-composition/import-root verification failed."
+          }
+          $installedJson
+
+      - name: Prove rerun is idempotent
+        shell: pwsh
+        run: |
+          $bootstrapScript = (
+            Resolve-Path -LiteralPath scripts/bootstrap_windows.ps1
+          ).Path
+          $markerPath = Join-Path `
+            $env:PDS_BOOTSTRAP_TARGET `
+            ".pds-suite-environment.json"
+          $markerBefore = (
+            Get-FileHash -Algorithm SHA256 -LiteralPath $markerPath
+          ).Hash
+
+          Push-Location $env:PDS_BOOTSTRAP_ACCEPTANCE_CWD
+          try {
+            $rerunOutput = @(
+              & $bootstrapScript `
+                -SuiteWheel $env:PDS_BOOTSTRAP_SUITE_WHEEL `
+                -SuiteWheelSha256 $env:PDS_BOOTSTRAP_SUITE_SHA256 `
+                -EnvironmentPath $env:PDS_BOOTSTRAP_TARGET `
+                -AllComponents `
+                -ArtifactDirectory $env:PDS_BOOTSTRAP_ARTIFACT_DIR `
+                *>&1
+            )
+            $rerunExit = $LASTEXITCODE
+          }
+          finally {
+            Pop-Location
+          }
+
+          $rerunText = $rerunOutput -join [Environment]::NewLine
+          $rerunText
+          if ($rerunExit -ne 0) {
+            throw "Idempotent rerun failed with exit code $rerunExit."
+          }
+
+          $expected = @(
+            "Environment action: keep_environment",
+            "PDS Core 0.6.0: keep_exact",
+            "Paper Data Suite 0.1.0.dev0: keep_exact",
+            "Concord 0.2.0: keep_exact",
+            "Quillan 0.9.0: keep_exact",
+            "ScoreForm 0.10.0: keep_exact",
+            "Vitrine 0.2.0: keep_exact",
+            "none required by this plan",
+            "No changes have been made."
+          )
+          foreach ($fragment in $expected) {
+            if (-not $rerunText.Contains($fragment)) {
+              throw "Idempotent output is missing expected fragment: $fragment"
+            }
+          }
+
+          $markerAfter = (
+            Get-FileHash -Algorithm SHA256 -LiteralPath $markerPath
+          ).Hash
+          if ($markerAfter -ne $markerBefore) {
+            throw "Plan-only idempotent rerun changed the environment marker."
+          }
+          if (@(
+            Get-ChildItem `
+              -LiteralPath $env:PDS_BOOTSTRAP_ACCEPTANCE_CWD `
+              -Force
+          ).Count -ne 0) {
+            throw "Idempotent rerun created working-directory state."
+          }
+
+      - name: Verify bootstrap acceptance repository hygiene
+        shell: pwsh
+        run: |
+          git diff --check
+
+          $residue = git status --porcelain --untracked-files=all
+          if ($residue) {
+            $residue
+            throw "Bootstrap acceptance left repository residue."
+          }

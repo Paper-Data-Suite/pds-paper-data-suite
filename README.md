@@ -43,6 +43,42 @@ version, and Portia does not yet have an executable application release.
 The normative manifest contract is
 [`docs/architecture/release-compatibility-manifest.md`](docs/architecture/release-compatibility-manifest.md).
 
+## Verified Windows bootstrap
+
+The repository now includes a verified Windows bootstrap and exact-version
+update-planning workflow at `scripts/bootstrap_windows.ps1`. Plan mode is the
+default and does not mutate the requested target environment. Applying a plan
+requires explicit `-Apply`; noninteractive application also requires `-Yes`.
+
+The bootstrap does not discover a "latest" PDS release. It starts from one
+local suite wheel plus an **external expected SHA-256** for that wheel. Only
+after authenticating the suite wheel does it trust the bundled compatibility
+manifest and authenticate the exact Core/module wheels declared there.
+
+For example:
+
+```powershell
+$suiteHash = (
+  Get-FileHash -Algorithm SHA256 -LiteralPath $suiteWheel
+).Hash.ToLowerInvariant()
+
+.\scripts\bootstrap_windows.ps1 `
+  -SuiteWheel $suiteWheel `
+  -SuiteWheelSha256 $suiteHash `
+  -AllComponents
+```
+
+The default target is the version-qualified directory
+`%LOCALAPPDATA%\Paper Data Suite\envs\<suite-version>`. Existing incompatible,
+unmarked, editable/source-linked, or otherwise uncertain PDS environments are
+blocked rather than silently upgraded or repaired. Bootstrap does not install
+Python, Poppler, or other system software and does not read or create a classroom
+workspace.
+
+The normative operational contract, trust hierarchy, apply behavior, failure
+semantics, and recovery boundaries are documented in
+[`docs/operations/windows-bootstrap.md`](docs/operations/windows-bootstrap.md).
+
 ## Architecture direction
 
 The suite shell is an orchestration and teacher-convenience layer, not a second
@@ -137,6 +173,8 @@ Do not place a real classroom PDS workspace inside this repository.
   — normative suite-shell ownership and integration contract.
 - [`docs/architecture/release-compatibility-manifest.md`](docs/architecture/release-compatibility-manifest.md)
   — normative machine-readable suite release-qualification contract.
+- [`docs/operations/windows-bootstrap.md`](docs/operations/windows-bootstrap.md)
+  — normative verified Windows bootstrap and exact update-planning workflow.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
