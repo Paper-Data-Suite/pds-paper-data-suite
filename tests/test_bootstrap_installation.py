@@ -271,4 +271,3 @@ def test_installed_import_layout_rejects_symlink_outside_target(
         match="resolves outside target site-packages",
     ):
         verify_installed_import_layout(manifest, snapshot)
-

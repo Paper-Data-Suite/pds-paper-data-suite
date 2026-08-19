@@ -192,4 +192,3 @@ def verify_installed_import_layout(
                 f"installed import root for {distribution} resolves outside "
                 "target site-packages"
             ) from error
-
