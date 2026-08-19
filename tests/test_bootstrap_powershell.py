@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -205,11 +206,19 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
         ]
         expected_returncode = 4
 
+    child_environment = None
+    if host == "powershell":
+        child_environment = os.environ.copy()
+        for name in list(child_environment):
+            if name.casefold() == "psmodulepath":
+                del child_environment[name]
+
     result = subprocess.run(
         command,
         check=False,
         capture_output=True,
         text=True,
+        env=child_environment,
     )
 
     assert result.returncode == expected_returncode
