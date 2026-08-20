@@ -38,6 +38,7 @@ _ALLOWED_ENTRY_POINT_GROUPS: Final = (
 )
 _ALLOWED_PREREQUISITE_KINDS: Final = frozenset({"command"})
 _ALLOWED_PLATFORMS: Final = frozenset({"windows", "linux", "macos"})
+_MAX_COMPONENT_PURPOSE_LENGTH: Final = 160
 _COMPONENT_ID_RE: Final = re.compile(r"^[a-z][a-z0-9_]*$")
 _PREREQUISITE_ID_RE: Final = re.compile(r"^[a-z][a-z0-9_-]*$")
 _DISTRIBUTION_RE: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -126,6 +127,7 @@ class ComponentCompatibility:
     capabilities: tuple[str, ...]
     entry_points: tuple[EntryPointExpectation, ...]
     external_prerequisites: tuple[ExternalPrerequisite, ...]
+    purpose: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +197,43 @@ def _expect_array(value: object, label: str) -> list[object]:
     if not isinstance(value, list):
         raise CompatibilityManifestError(f"{label} must be an array")
     return cast(list[object], value)
+
+
+def _parse_component_purpose(
+    value: object,
+    *,
+    component_id: str,
+    launchable: bool,
+) -> str | None:
+    label = f"component {component_id!r} purpose"
+    if value is None:
+        if launchable:
+            raise CompatibilityManifestError(
+                f"launchable component {component_id!r} must declare purpose"
+            )
+        return None
+
+    purpose = _expect_string(value, label)
+    if not launchable:
+        raise CompatibilityManifestError(
+            f"non-launchable component {component_id!r} purpose must be null"
+        )
+    if purpose != purpose.strip():
+        raise CompatibilityManifestError(
+            f"{label} must not contain leading or trailing whitespace"
+        )
+    if len(purpose) > _MAX_COMPONENT_PURPOSE_LENGTH:
+        raise CompatibilityManifestError(
+            f"{label} must be at most {_MAX_COMPONENT_PURPOSE_LENGTH} characters"
+        )
+    if any(
+        ord(character) < 32 or 127 <= ord(character) <= 159
+        for character in purpose
+    ):
+        raise CompatibilityManifestError(
+            f"{label} must be single-line text without control characters"
+        )
+    return purpose
 
 
 def _parse_minor(value: str, label: str) -> tuple[int, int]:
@@ -521,6 +560,7 @@ def _parse_component(
         {
             "component_id",
             "display_name",
+            "purpose",
             "repository",
             "distribution",
             "import_name",
@@ -633,6 +673,12 @@ def _parse_component(
             "unsupported capabilities: " + ", ".join(unknown_capabilities)
         )
 
+    purpose = _parse_component_purpose(
+        data["purpose"],
+        component_id=component_id,
+        launchable="launchable_application" in capabilities,
+    )
+
     entry_points = _parse_entry_points(data["entry_points"], component_id)
     external_prerequisites = _parse_prerequisites(
         data["external_prerequisites"], component_id
@@ -661,6 +707,11 @@ def _parse_component(
     if "launchable_application" in capabilities and not console_entries:
         raise CompatibilityManifestError(
             f"launchable component {component_id!r} must expose a console script"
+        )
+    if "launchable_application" in capabilities and len(console_entries) != 1:
+        raise CompatibilityManifestError(
+            f"launchable component {component_id!r} must expose exactly one "
+            "console script"
         )
     if component_id == "core":
         if "shared_core" not in capabilities:
@@ -693,6 +744,7 @@ def _parse_component(
         capabilities,
         entry_points,
         external_prerequisites,
+        purpose,
     )
 
 

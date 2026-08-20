@@ -13,9 +13,10 @@ and the primary command is `pds`.
 The suite shell is in pre-release development at `0.1.0.dev0`.
 
 There is **no supported public v0.1.0 release yet**. The package foundation is
-installable and the first operational shell command, `pds doctor`, provides
-read-only environment diagnostics. Additional teacher-facing workflows are added
-by later v0.1.0 issues.
+installable. The shell now provides read-only environment diagnostics through
+`pds doctor`, suite-qualified application inventory through `pds modules`, and
+verified out-of-process application launching through `pds launch <component-id>`.
+Additional teacher-facing workflows are added by later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
 `pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
@@ -108,6 +109,40 @@ The operational contract, status/exit semantics, privacy boundary, and
 installed-wheel acceptance requirements are documented in
 [`docs/operations/pds-doctor.md`](docs/operations/pds-doctor.md).
 
+## Application discovery and launching
+
+List the applications qualified for this suite release with:
+
+```powershell
+pds modules
+```
+
+Launch one available application through its verified public console boundary with:
+
+```powershell
+pds launch scoreform
+```
+
+The inventory is release-manifest-driven. It distinguishes `AVAILABLE`,
+`NOT_INSTALLED`, `INCOMPATIBLE`, and `UNAVAILABLE`, lists only components that
+declare `launchable_application`, and does not confuse Core routing profiles with
+teacher-facing application launchability.
+
+Launch resolution does not trust a same-named executable found on `PATH`. After
+verifying exact installed distribution and console-entry-point metadata, the shell
+resolves the launcher belonging to the running Python environment and starts it as
+a foreground child process without importing sibling-private menu internals.
+Inherited `PYTHONPATH` is removed from the child environment to prevent source-tree
+shadowing.
+
+Application listing does not require or create a workspace. `AVAILABLE` proves the
+bounded software launch boundary; it does not claim that every module workflow or
+external prerequisite is healthy. Use `pds doctor` for broader environment health.
+
+The operational contract and installed-wheel acceptance requirements are
+documented in
+[`docs/operations/application-discovery-launching.md`](docs/operations/application-discovery-launching.md).
+
 ## Architecture direction
 
 The suite shell is an orchestration and teacher-convenience layer, not a second
@@ -152,16 +187,22 @@ pds --help
 pds --version
 pds doctor
 pds doctor --workspace <path>
+pds modules
+pds launch <component-id>
 
 python -m paper_data_suite
 python -m paper_data_suite --help
 python -m paper_data_suite --version
 python -m paper_data_suite doctor
+python -m paper_data_suite modules
+python -m paper_data_suite launch <component-id>
 ```
 
-The help/version commands and `doctor` do not create or select a workspace or
-perform classroom-data mutation. `doctor --workspace` is an invocation-scoped
-inspection override only.
+The help/version commands, `doctor`, and `modules` do not create or select a
+workspace or perform classroom-data mutation. `doctor --workspace` is an
+invocation-scoped inspection override only. `launch` crosses only the verified
+public application boundary; module-owned behavior remains owned by the launched
+application.
 
 ## Development validation
 
@@ -186,6 +227,21 @@ python .\scripts\check_package.py <suite-wheel>
 python .\scripts\smoke_test_wheel.py <suite-wheel> <core-wheel>
 ```
 
+The Core-only smoke proves legitimate partial installation behavior. To exercise
+the complete suite-qualified application composition, place every exact component
+wheel declared by the manifest in one artifact directory and run:
+
+```powershell
+python .\scripts\smoke_test_application_wheels.py `
+  <suite-wheel> `
+  --artifact-dir <directory-containing-declared-wheels>
+```
+
+The full-composition smoke authenticates the declared PDS component wheels before
+installation, resolves ordinary third-party Python dependencies through pip,
+verifies that every qualified application is `available`, and launches then quits
+each current teacher-facing menu through the installed `pds` console boundary.
+
 To authenticate all exact component wheels declared by the manifest:
 
 ```powershell
@@ -195,10 +251,11 @@ python .\scripts\verify_compatibility_artifacts.py `
 
 The built-wheel smoke test creates an isolated environment, removes source-tree
 shadowing inputs, proves that the bundled compatibility resource loads beside
-Core without requiring sibling PDS applications, and exercises installed
+Core without requiring sibling PDS applications, exercises installed
 `python -m paper_data_suite doctor` and `pds doctor` against a synthetic absent
-workspace path. The artifact verifier inspects release wheels directly; it does
-not install or import them.
+workspace path, and verifies installed application inventory/refusal behavior
+without trusting a foreign same-named executable on `PATH`. The artifact verifier
+inspects release wheels directly; it does not install or import them.
 
 Do not place a real classroom PDS workspace inside this repository.
 
@@ -212,6 +269,9 @@ Do not place a real classroom PDS workspace inside this repository.
   — normative verified Windows bootstrap and exact update-planning workflow.
 - [`docs/operations/pds-doctor.md`](docs/operations/pds-doctor.md)
   — read-only suite environment diagnostics, statuses, privacy, and acceptance.
+- [`docs/operations/application-discovery-launching.md`](docs/operations/application-discovery-launching.md)
+  — suite-qualified application inventory, safe launcher resolution, and process
+  boundary.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data

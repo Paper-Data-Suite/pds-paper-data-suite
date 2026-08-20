@@ -111,6 +111,7 @@ semantic fields:
 ```text
 component_id
 display_name
+purpose
 repository
 distribution
 import_name
@@ -133,6 +134,16 @@ A supported row means:
 > manifest.
 
 It does not mean that the component is installed on the current machine.
+
+For rows declaring `launchable_application`, `purpose` is a short, bounded,
+single-line teacher-facing description used by suite navigation. It is not a
+domain-capability catalog and must not encode claims such as `can_grade`,
+`can_group`, or `can_review`. Non-launchable rows use `null`.
+
+The current `0.1.0.dev0` development contract incorporates this field into v1
+before the first final v1 suite release. After a final v1 release exists,
+structural changes must follow the contract-versioning rule above rather than
+being added silently.
 
 ## 6. Required, optional, and runtime state
 

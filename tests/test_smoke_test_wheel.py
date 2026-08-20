@@ -74,3 +74,53 @@ def test_doctor_output_assertion_requires_reduced_fidelity_sections() -> None:
 def test_doctor_output_assertion_rejects_incomplete_report() -> None:
     with pytest.raises(smoke_test_wheel.SmokeTestError):
         smoke_test_wheel._assert_doctor_output("Paper Data Suite doctor\nOverall\n")
+
+def test_modules_output_assertion_accepts_clean_partial_install() -> None:
+    output = "\n".join(
+        (
+            "Concord\n  Status: not installed",
+            "Paper-first collaborative classroom evidence and group-work workflows.",
+            "Quillan\n  Status: not installed",
+            "Standards-based writing evidence capture and review.",
+            "ScoreForm\n  Status: not installed",
+            "Printable answer-sheet generation and OMR scoring.",
+            "Vitrine\n  Status: not installed",
+            "Portfolio curation and immutable snapshot workflows.",
+        )
+    )
+
+    smoke_test_wheel._assert_modules_output(output)
+
+
+def test_modules_output_assertion_rejects_missing_application() -> None:
+    with pytest.raises(
+        smoke_test_wheel.SmokeTestError,
+        match="missing qualified applications",
+    ):
+        smoke_test_wheel._assert_modules_output(
+            "\n".join(
+                (
+                    "Concord\n  Status: not installed",
+                    "Quillan\n  Status: not installed",
+                    "ScoreForm\n  Status: not installed",
+                )
+            )
+        )
+
+
+def test_modules_output_assertion_rejects_internal_entry_point_leak() -> None:
+    with pytest.raises(
+        smoke_test_wheel.SmokeTestError,
+        match="leaked non-application/internal content",
+    ):
+        smoke_test_wheel._assert_modules_output(
+            "\n".join(
+                (
+                    "Concord\n  Status: not installed",
+                    "Quillan\n  Status: not installed",
+                    "ScoreForm\n  Status: not installed",
+                    "Vitrine\n  Status: not installed",
+                    "console_scripts scoreform.cli:main",
+                )
+            )
+        )

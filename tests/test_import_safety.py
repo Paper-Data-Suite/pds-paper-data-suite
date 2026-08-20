@@ -21,7 +21,12 @@ TRACKED_MODULES = (
 
 @pytest.mark.parametrize(
     "module_name",
-    ["paper_data_suite", "paper_data_suite.cli"],
+    [
+        "paper_data_suite",
+        "paper_data_suite.applications",
+        "paper_data_suite.application_launching",
+        "paper_data_suite.cli",
+    ],
 )
 def test_import_is_side_effect_free(
     tmp_path: Path,
