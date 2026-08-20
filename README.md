@@ -16,8 +16,9 @@ There is **no supported public v0.1.0 release yet**. The package foundation is
 installable. The shell now provides read-only environment diagnostics through
 `pds doctor`, suite-qualified application inventory through `pds modules`,
 verified out-of-process application launching through `pds launch <component-id>`,
-and Core-backed workspace selection/validation through `pds workspace`.
-Additional teacher-facing workflows are added by later v0.1.0 issues.
+Core-backed workspace selection/validation through `pds workspace`, and guided
+shared classroom setup through `pds setup`. Additional teacher-facing workflows
+are added by later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
 `pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
@@ -185,6 +186,59 @@ leaves selection unchanged.
 The operational contract and installed-wheel acceptance requirements are documented
 in [`docs/operations/workspace-setup.md`](docs/operations/workspace-setup.md).
 
+## Shared classroom setup
+
+After selecting and initializing a workspace, run the guided shared classroom
+workflow with:
+
+```powershell
+pds setup
+```
+
+Equivalent module invocation:
+
+```powershell
+python -m paper_data_suite setup
+```
+
+`pds setup` operates only on the workspace already resolved by Core. It reviews
+the active school year, explicit class IDs, optional teacher-selected roster CSVs,
+shared standards, and an optional initial Academic Period calendar. It does not
+select or initialize another workspace.
+
+The workflow is review-before-write. All proposed state is validated in memory and
+shown in a final review. Only exact uppercase `APPLY` authorizes persistent Core
+writes; `E` returns to in-memory editing and `Q` cancels. Writer services are not
+loaded until final `APPLY`. Before the first mutation the suite re-reads the
+reviewed Core state and refuses stale plans.
+
+Roster imports remain Core-validated and class-scoped. Existing differing rosters
+are shown as whole-roster replacements; the suite does not invent row-level merge
+semantics. Starter standards packs are Core-provided and must be selected
+explicitly. Existing Academic Period calendars are kept unchanged; a new initial
+calendar requires every period field explicitly and is shown in the final review.
+
+A recommended first-time pilot sequence is:
+
+```powershell
+pds doctor
+pds workspace setup
+pds doctor
+pds setup
+pds modules
+```
+
+Then launch a qualified teacher application explicitly, for example:
+
+```powershell
+pds launch scoreform
+```
+
+The operational contract, duplicate/conflict rules, APPLY ordering, privacy
+boundaries, partial-success behavior, and installed-wheel acceptance are documented
+in
+[`docs/operations/shared-classroom-setup.md`](docs/operations/shared-classroom-setup.md).
+
 ## Architecture direction
 
 The suite shell is an orchestration and teacher-convenience layer, not a second
@@ -231,6 +285,7 @@ pds doctor
 pds doctor --workspace <path>
 pds modules
 pds launch <component-id>
+pds setup
 pds workspace setup
 pds workspace show
 pds workspace validate [<path>]
@@ -243,6 +298,7 @@ python -m paper_data_suite --version
 python -m paper_data_suite doctor
 python -m paper_data_suite modules
 python -m paper_data_suite launch <component-id>
+python -m paper_data_suite setup
 python -m paper_data_suite workspace setup
 python -m paper_data_suite workspace show
 python -m paper_data_suite workspace validate [<path>]
@@ -255,8 +311,10 @@ create or select a workspace or perform classroom-data mutation.
 `doctor --workspace` is an invocation-scoped inspection override only.
 `workspace validate` validates an existing candidate without initializing or
 saving it; `workspace setup`, `set`, and `reset` are the explicit workspace
-mutation surfaces. `launch` crosses only the verified public application
-boundary; module-owned behavior remains owned by the launched application.
+mutation surfaces. `pds setup` is the explicit shared-classroom mutation surface
+and remains read-only until exact final `APPLY`. `launch` crosses only the verified
+public application boundary; module-owned behavior remains owned by the launched
+application.
 
 ## Development validation
 
@@ -280,13 +338,17 @@ Then validate and smoke-test the built wheel using the exact Core 0.6.0 wheel:
 python .\scripts\check_package.py <suite-wheel>
 python .\scripts\smoke_test_wheel.py <suite-wheel> <core-wheel>
 python .\scripts\smoke_test_workspace_wheel.py <suite-wheel> <core-wheel>
+python .\scripts\smoke_test_classroom_setup_wheel.py <suite-wheel> <core-wheel>
 ```
 
 The Core-only smoke proves legitimate partial installation behavior. The dedicated
 workspace smoke uses an isolated synthetic user profile and proves installed
 workspace show/validate/setup/set/reset behavior without touching the developer's
-real Core configuration or workspace. To exercise
-the complete suite-qualified application composition, place every exact component
+real Core configuration or workspace. The dedicated classroom setup smoke uses a
+separate isolated profile to prove exact-`APPLY` authorization, cancellation with
+no classroom mutation, Core-owned school-year application, absence of persisted
+suite setup-plan artifacts, and idempotent reruns. To exercise the complete
+suite-qualified application composition, place every exact component
 wheel declared by the manifest in one artifact directory and run:
 
 ```powershell
@@ -332,6 +394,8 @@ Do not place a real classroom PDS workspace inside this repository.
   boundary.
 - [`docs/operations/workspace-setup.md`](docs/operations/workspace-setup.md)
   — Core-backed workspace selection, validation, guided setup, and reset.
+- [`docs/operations/shared-classroom-setup.md`](docs/operations/shared-classroom-setup.md)
+  — guided school-year, class, roster, standards, and Academic Period setup.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data

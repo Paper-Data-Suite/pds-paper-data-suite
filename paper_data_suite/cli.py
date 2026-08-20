@@ -20,6 +20,7 @@ from paper_data_suite.applications import (
     ApplicationLaunchStatus,
     collect_application_inventory,
 )
+from paper_data_suite.classroom_setup_cli import run_classroom_setup
 from paper_data_suite.compatibility import (
     CompatibilityManifestError,
     ComponentCompatibility,
@@ -111,6 +112,16 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_subparsers.add_parser(
         "reset",
         help="clear only Core's saved workspace preference",
+    )
+    subparsers.add_parser(
+        "setup",
+        help="run guided shared school-year and classroom setup",
+        description=(
+            "Guided shared setup over the currently resolved Core workspace. "
+            "Review school year, classes, rosters, standards, and an initial "
+            "Academic Period calendar before any persistent change; only exact "
+            "APPLY authorizes Core writes."
+        ),
     )
     subparsers.add_parser(
         "modules",
@@ -302,6 +313,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise AssertionError(
             f"unhandled workspace command: {arguments.workspace_command}"
         )
+    if arguments.command == "setup":
+        return run_classroom_setup()
     if arguments.command == "modules":
         return _run_modules()
     if arguments.command == "launch":
