@@ -17,6 +17,8 @@ _PACKAGE_FILES = (
     "paper_data_suite/__init__.py",
     "paper_data_suite/__main__.py",
     "paper_data_suite/_version.py",
+    "paper_data_suite/application_launching.py",
+    "paper_data_suite/applications.py",
     "paper_data_suite/artifact_verification.py",
     "paper_data_suite/bootstrap.py",
     "paper_data_suite/bootstrap_artifacts.py",
@@ -24,6 +26,7 @@ _PACKAGE_FILES = (
     "paper_data_suite/bootstrap_installation.py",
     "paper_data_suite/cli.py",
     "paper_data_suite/compatibility.py",
+    "paper_data_suite/component_inspection.py",
     "paper_data_suite/environment_inspection.py",
     "paper_data_suite/data/__init__.py",
     "paper_data_suite/py.typed",
@@ -118,6 +121,55 @@ def test_package_validator_requires_bootstrap_runtime_modules(
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/bootstrap_installation.py",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
+    ):
+        validate_wheel(wheel)
+
+
+
+def test_package_validator_requires_component_inspection_runtime_module(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/component_inspection.py",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
+    ):
+        validate_wheel(wheel)
+
+
+def test_package_validator_requires_applications_runtime_module(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/applications.py",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
+    ):
+        validate_wheel(wheel)
+
+
+def test_package_validator_requires_application_launching_runtime_module(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/application_launching.py",
     )
 
     with pytest.raises(

@@ -12,10 +12,7 @@ from importlib import import_module, metadata
 from pathlib import Path
 from typing import Protocol, cast
 
-from paper_data_suite.bootstrap import (
-    BootstrapPlanningError,
-    normalize_distribution_name,
-)
+from paper_data_suite.bootstrap import normalize_distribution_name
 from paper_data_suite.compatibility import (
     ComponentCompatibility,
     ExternalPrerequisite,
@@ -23,30 +20,32 @@ from paper_data_suite.compatibility import (
     load_release_compatibility_manifest,
     release_compatibility_manifest_sha256,
 )
+from paper_data_suite.component_inspection import (
+    DistributionVersionLookup,
+    EntryPointInventoryLookup,
+    EntryPointObservation,
+)
+from paper_data_suite.component_inspection import (
+    component_is_suite_qualified as _qualified_component,
+)
+from paper_data_suite.component_inspection import (
+    installed_entry_point_inventory as _installed_entry_point_inventory,
+)
+from paper_data_suite.component_inspection import (
+    lookup_distribution_version as _lookup_distribution_version,
+)
+from paper_data_suite.component_inspection import (
+    normalize_entry_point_owner as _normalized_owner,
+)
 from paper_data_suite.environment_inspection import (
     ENVIRONMENT_MARKER_FILENAME,
     EnvironmentInspectionError,
     parse_environment_marker,
 )
 
-DistributionVersionLookup = Callable[[str], str]
 CommandLookup = Callable[[str], str | None]
 ManifestDigestLookup = Callable[[], str]
 ModuleImporter = Callable[[str], object]
-
-
-@dataclass(frozen=True, slots=True)
-class EntryPointObservation:
-    """Metadata-only observation of one installed public entry point."""
-
-    group: str
-    name: str
-    target: str
-    distribution: str
-    distribution_version: str
-
-
-EntryPointInventoryLookup = Callable[[], Sequence[EntryPointObservation]]
 
 
 class CommandRunner(Protocol):
@@ -129,16 +128,6 @@ class DoctorReport:
 def combine_reports(*reports: DoctorReport) -> DoctorReport:
     """Combine already ordered diagnostic reports without changing their checks."""
     return DoctorReport(tuple(check for report in reports for check in report.checks))
-
-
-def _lookup_distribution_version(
-    distribution: str,
-    version_lookup: DistributionVersionLookup,
-) -> str | None:
-    try:
-        return version_lookup(distribution)
-    except metadata.PackageNotFoundError:
-        return None
 
 
 def _python_check(
@@ -666,53 +655,6 @@ _CORE_PUBLIC_CONTRACTS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def _installed_entry_point_inventory() -> tuple[EntryPointObservation, ...]:
-    """Read installed entry-point metadata without loading entry-point targets."""
-    observations: list[EntryPointObservation] = []
-    for distribution in metadata.distributions():
-        try:
-            owner = distribution.metadata["Name"]
-            version = distribution.version
-            entry_points = tuple(distribution.entry_points)
-        except (KeyError, OSError, TypeError, ValueError):
-            continue
-        if not owner or not version:
-            continue
-        for entry_point in entry_points:
-            observations.append(
-                EntryPointObservation(
-                    group=entry_point.group,
-                    name=entry_point.name,
-                    target=entry_point.value,
-                    distribution=str(owner),
-                    distribution_version=str(version),
-                )
-            )
-    return tuple(
-        sorted(
-            observations,
-            key=lambda item: (
-                item.group,
-                item.name,
-                normalize_distribution_name(item.distribution),
-                item.distribution_version,
-                item.target,
-            ),
-        )
-    )
-
-
-def _qualified_component(
-    component: ComponentCompatibility,
-    *,
-    version_lookup: DistributionVersionLookup,
-) -> bool:
-    return (
-        _lookup_distribution_version(component.distribution, version_lookup)
-        == component.version
-    )
-
-
 def _entry_point_component_skip(
     component: ComponentCompatibility,
 ) -> DiagnosticCheck:
@@ -726,13 +668,6 @@ def _entry_point_component_skip(
             "suite-qualified package version is not installed."
         ),
     )
-
-
-def _normalized_owner(value: str) -> str | None:
-    try:
-        return normalize_distribution_name(value)
-    except BootstrapPlanningError:
-        return None
 
 
 def _entry_point_check(

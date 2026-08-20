@@ -9,6 +9,7 @@
       "compatibility_status": "supported",
       "component_id": "concord",
       "display_name": "Concord",
+      "purpose": "Paper-first collaborative classroom evidence and group-work workflows.",
       "distribution": "pds-concord",
       "entry_points": {
         "console_scripts": {
@@ -40,6 +41,7 @@
       "compatibility_status": "supported",
       "component_id": "core",
       "display_name": "PDS Core",
+      "purpose": null,
       "distribution": "pds-core",
       "entry_points": {
         "console_scripts": {
@@ -70,6 +72,7 @@
       "compatibility_status": "supported",
       "component_id": "quillan",
       "display_name": "Quillan",
+      "purpose": "Standards-based writing evidence capture and review.",
       "distribution": "quillan",
       "entry_points": {
         "console_scripts": {
@@ -117,6 +120,7 @@
       "compatibility_status": "supported",
       "component_id": "scoreform",
       "display_name": "ScoreForm",
+      "purpose": "Printable answer-sheet generation and OMR scoring.",
       "distribution": "scoreform",
       "entry_points": {
         "console_scripts": {
@@ -162,6 +166,7 @@
       "compatibility_status": "supported",
       "component_id": "vitrine",
       "display_name": "Vitrine",
+      "purpose": "Portfolio curation and immutable snapshot workflows.",
       "distribution": "pds-vitrine",
       "entry_points": {
         "console_scripts": {

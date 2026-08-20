@@ -263,6 +263,90 @@ print(json.dumps({
     _assert_clean_directory(cwd)
 
 
+def _assert_modules_output(output: str) -> None:
+    required_names = ("Concord", "Quillan", "ScoreForm", "Vitrine")
+    missing_names = [name for name in required_names if name not in output]
+    if missing_names:
+        raise SmokeTestError(
+            "Installed application inventory is missing qualified applications: "
+            + ", ".join(missing_names)
+        )
+    if output.count("Status: not installed") < len(required_names):
+        raise SmokeTestError(
+            "Clean smoke inventory must report every optional application "
+            "with teacher-facing status 'not installed'."
+        )
+    forbidden = ("Core [", "pds-core", "console_scripts", ".cli:main")
+    leaked = [fragment for fragment in forbidden if fragment in output]
+    if leaked:
+        raise SmokeTestError(
+            "Installed application inventory leaked non-application/internal "
+            "content: " + ", ".join(leaked)
+        )
+
+
+def _assert_modules_command(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+) -> None:
+    result = _run(command, cwd=cwd, env=env)
+    _assert_modules_output(result.stdout)
+    _assert_clean_directory(cwd)
+
+
+def _foreign_application_command(directory: Path) -> tuple[Path, Path]:
+    marker = directory / "foreign-scoreform-ran.txt"
+    if os.name == "nt":
+        command = directory / "scoreform.cmd"
+        command.write_text(
+            "@echo off\r\n"
+            f'> "{marker}" echo foreign launcher executed\r\n',
+            encoding="utf-8",
+        )
+    else:
+        command = directory / "scoreform"
+        command.write_text(
+            "#!/bin/sh\n"
+            f"printf '%s\n' 'foreign launcher executed' > '{marker}'\n",
+            encoding="utf-8",
+        )
+        command.chmod(0o755)
+    return command, marker
+
+
+def _assert_absent_application_launch_refused(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    foreign_marker: Path,
+) -> None:
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        env=dict(env),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        raise SmokeTestError(
+            "Launch of absent optional application unexpectedly succeeded."
+        )
+    combined = f"{result.stdout}\n{result.stderr}".lower()
+    if "not installed" not in combined:
+        raise SmokeTestError(
+            "Launch refusal did not explain that the application is not installed."
+        )
+    if foreign_marker.exists():
+        raise SmokeTestError(
+            "Suite launch executed a same-named foreign command from PATH."
+        )
+    _assert_clean_directory(cwd)
+
+
 def _assert_doctor_output(output: str) -> None:
     required = (
         "Paper Data Suite doctor",
@@ -455,6 +539,35 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
             missing_workspace=missing_workspace,
         )
 
+        _assert_modules_command(
+            [str(python), "-m", "paper_data_suite", "modules"],
+            cwd=run_directory,
+            env=command_env,
+        )
+
+        foreign_bin = temp_root / "foreign-bin"
+        foreign_bin.mkdir()
+        _foreign_command, foreign_marker = _foreign_application_command(foreign_bin)
+        path_separator = os.pathsep
+        existing_path = command_env.get("PATH", "")
+        command_env["PATH"] = (
+            f"{foreign_bin}{path_separator}{existing_path}"
+            if existing_path
+            else str(foreign_bin)
+        )
+
+        _assert_modules_command(
+            [str(python), "-m", "paper_data_suite", "modules"],
+            cwd=run_directory,
+            env=command_env,
+        )
+        _assert_absent_application_launch_refused(
+            [str(python), "-m", "paper_data_suite", "launch", "scoreform"],
+            cwd=run_directory,
+            env=command_env,
+            foreign_marker=foreign_marker,
+        )
+
         scripts = _scripts_directory(
             python, cwd=run_directory, env=command_env
         )
@@ -487,6 +600,17 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
             cwd=run_directory,
             env=command_env,
             missing_workspace=missing_workspace,
+        )
+        _assert_modules_command(
+            [str(launcher), "modules"],
+            cwd=run_directory,
+            env=command_env,
+        )
+        _assert_absent_application_launch_refused(
+            [str(launcher), "launch", "scoreform"],
+            cwd=run_directory,
+            env=command_env,
+            foreign_marker=foreign_marker,
         )
 
 
