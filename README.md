@@ -16,9 +16,10 @@ There is **no supported public v0.1.0 release yet**. The package foundation is
 installable. The shell now provides read-only environment diagnostics through
 `pds doctor`, suite-qualified application inventory through `pds modules`,
 verified out-of-process application launching through `pds launch <component-id>`,
-Core-backed workspace selection/validation through `pds workspace`, and guided
-shared classroom setup through `pds setup`. Additional teacher-facing workflows
-are added by later v0.1.0 issues.
+Core-backed workspace selection/validation through `pds workspace`, guided shared
+classroom setup through `pds setup`, and verified whole-workspace backup creation
+through `pds backup create`. Additional teacher-facing workflows are added by
+later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
 `pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
@@ -225,6 +226,7 @@ pds doctor
 pds workspace setup
 pds doctor
 pds setup
+pds backup create --destination <protected-backup-location>
 pds modules
 ```
 
@@ -238,6 +240,49 @@ The operational contract, duplicate/conflict rules, APPLY ordering, privacy
 boundaries, partial-success behavior, and installed-wheel acceptance are documented
 in
 [`docs/operations/shared-classroom-setup.md`](docs/operations/shared-classroom-setup.md).
+
+## Workspace backup creation
+
+Create a timestamped, non-overwriting whole-workspace backup with:
+
+```powershell
+pds backup create --destination "D:\PDS Backups"
+```
+
+Equivalent module invocation:
+
+```powershell
+python -m paper_data_suite backup create --destination "D:\PDS Backups"
+```
+
+The source is always the workspace currently resolved by Core. The suite treats
+backup as opaque byte custody: it inventories ordinary files and empty directories,
+streams file bytes without parsing owner records, calculates SHA-256 hashes, checks
+destination containment and free space, detects observed source drift, verifies the
+staged payload, and only then publishes a completed timestamped backup.
+
+Interactive creation requires exact uppercase `BACKUP`. `--yes` is available for
+deliberate noninteractive use with the required explicit destination; it bypasses
+the prompt only, not safety or verification checks. Cancellation creates no backup.
+
+Backup v1 has no module-aware or user-configurable source exclusions. Links,
+junction-like redirection, unsupported special entries, unsafe source/destination
+relationships, insufficient free space, collisions, and verification failures are
+refused rather than silently ignored.
+
+A backup is another complete copy of potentially sensitive classroom data. PDS does
+not encrypt, upload, or cloud-sync it. SHA-256 provides integrity evidence, not
+confidentiality or digital-signature authenticity. External synchronization of a
+chosen OneDrive or other managed folder remains behavior of that storage system,
+not PDS.
+
+Issue #10 implements creation-time self-verification only. Standalone backup
+verification and restore-to-an-explicit-alternate-location belong to the following
+backup/restore issue.
+
+The manifest/layout contract, privacy boundary, staging/publication model, source
+consistency limits, and installed-wheel acceptance are documented in
+[`docs/operations/workspace-backup.md`](docs/operations/workspace-backup.md).
 
 ## Architecture direction
 
@@ -283,6 +328,8 @@ pds --help
 pds --version
 pds doctor
 pds doctor --workspace <path>
+pds backup
+pds backup create --destination <path> [--yes]
 pds modules
 pds launch <component-id>
 pds setup
@@ -296,6 +343,8 @@ python -m paper_data_suite
 python -m paper_data_suite --help
 python -m paper_data_suite --version
 python -m paper_data_suite doctor
+python -m paper_data_suite backup
+python -m paper_data_suite backup create --destination <path> [--yes]
 python -m paper_data_suite modules
 python -m paper_data_suite launch <component-id>
 python -m paper_data_suite setup
@@ -306,15 +355,16 @@ python -m paper_data_suite workspace set <path>
 python -m paper_data_suite workspace reset
 ```
 
-The help/version commands, `doctor`, `modules`, and `workspace show` do not
-create or select a workspace or perform classroom-data mutation.
+The help/version commands, `doctor`, `modules`, `workspace show`, and `backup`
+help do not create or select a workspace or perform classroom-data mutation.
 `doctor --workspace` is an invocation-scoped inspection override only.
 `workspace validate` validates an existing candidate without initializing or
 saving it; `workspace setup`, `set`, and `reset` are the explicit workspace
 mutation surfaces. `pds setup` is the explicit shared-classroom mutation surface
-and remains read-only until exact final `APPLY`. `launch` crosses only the verified
-public application boundary; module-owned behavior remains owned by the launched
-application.
+and remains read-only until exact final `APPLY`. `pds backup create` leaves the
+source workspace read-only and creates an external copy only after exact `BACKUP`
+or explicit `--yes`. `launch` crosses only the verified public application boundary;
+module-owned behavior remains owned by the launched application.
 
 ## Development validation
 
@@ -339,6 +389,7 @@ python .\scripts\check_package.py <suite-wheel>
 python .\scripts\smoke_test_wheel.py <suite-wheel> <core-wheel>
 python .\scripts\smoke_test_workspace_wheel.py <suite-wheel> <core-wheel>
 python .\scripts\smoke_test_classroom_setup_wheel.py <suite-wheel> <core-wheel>
+python .\scripts\smoke_test_workspace_backup_wheel.py <suite-wheel> <core-wheel>
 ```
 
 The Core-only smoke proves legitimate partial installation behavior. The dedicated
@@ -347,9 +398,13 @@ workspace show/validate/setup/set/reset behavior without touching the developer'
 real Core configuration or workspace. The dedicated classroom setup smoke uses a
 separate isolated profile to prove exact-`APPLY` authorization, cancellation with
 no classroom mutation, Core-owned school-year application, absence of persisted
-suite setup-plan artifacts, and idempotent reruns. To exercise the complete
-suite-qualified application composition, place every exact component
-wheel declared by the manifest in one artifact directory and run:
+suite setup-plan artifacts, and idempotent reruns. The dedicated workspace-backup
+smoke uses another isolated profile to prove module/console command installation,
+mutation-free cancellation, inside-workspace refusal, source immutability, complete
+opaque payload/hash inventory, manifest privacy, non-overwrite collision behavior,
+and absence of sibling-module requirements. To exercise the complete
+suite-qualified application composition, place every exact component wheel declared
+by the manifest in one artifact directory and run:
 
 ```powershell
 python .\scripts\smoke_test_application_wheels.py `
@@ -396,6 +451,9 @@ Do not place a real classroom PDS workspace inside this repository.
   — Core-backed workspace selection, validation, guided setup, and reset.
 - [`docs/operations/shared-classroom-setup.md`](docs/operations/shared-classroom-setup.md)
   — guided school-year, class, roster, standards, and Academic Period setup.
+- [`docs/operations/workspace-backup.md`](docs/operations/workspace-backup.md)
+  — whole-workspace opaque backup creation, deterministic manifest, safety, and
+  acceptance.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
