@@ -28,6 +28,7 @@ from paper_data_suite.compatibility import (
     load_release_compatibility_manifest,
 )
 from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
+from paper_data_suite.workspace_backup_cli import run_workspace_backup_create
 from paper_data_suite.workspace_cli import (
     run_workspace_reset,
     run_workspace_set,
@@ -112,6 +113,38 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_subparsers.add_parser(
         "reset",
         help="clear only Core's saved workspace preference",
+    )
+    backup = subparsers.add_parser(
+        "backup",
+        help="create protected whole-workspace backups",
+        description=(
+            "Create protected whole-workspace backups of the currently resolved "
+            "Core workspace. Backup copies are opaque byte custody: PDS does not "
+            "rewrite owner records, encrypt, upload, or cloud-sync them."
+        ),
+    )
+    backup.set_defaults(backup_parser=backup)
+    backup_subparsers = backup.add_subparsers(dest="backup_command")
+    backup_create = backup_subparsers.add_parser(
+        "create",
+        help="create one timestamped non-overwriting workspace backup",
+        description=(
+            "Create a timestamped, non-overwriting backup of the currently resolved "
+            "Core workspace. --destination is the explicit parent directory for the "
+            "new backup. The backup contains the same potentially sensitive data as "
+            "the workspace. PDS does not encrypt, upload, or cloud-sync the backup."
+        ),
+    )
+    backup_create.add_argument(
+        "--destination",
+        required=True,
+        type=Path,
+        help="explicit parent directory under which the timestamped backup is created",
+    )
+    backup_create.add_argument(
+        "--yes",
+        action="store_true",
+        help="create after preflight without the interactive BACKUP confirmation",
     )
     subparsers.add_parser(
         "setup",
@@ -313,6 +346,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise AssertionError(
             f"unhandled workspace command: {arguments.workspace_command}"
         )
+    if arguments.command == "backup":
+        if arguments.backup_command is None:
+            arguments.backup_parser.print_help()
+            return 0
+        if arguments.backup_command == "create":
+            return run_workspace_backup_create(
+                arguments.destination,
+                assume_yes=arguments.yes,
+            )
+        raise AssertionError(f"unhandled backup command: {arguments.backup_command}")
     if arguments.command == "setup":
         return run_classroom_setup()
     if arguments.command == "modules":
