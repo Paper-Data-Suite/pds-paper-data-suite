@@ -26,6 +26,8 @@ TRACKED_MODULES = (
         "paper_data_suite.applications",
         "paper_data_suite.application_launching",
         "paper_data_suite.cli",
+        "paper_data_suite.workspace_setup",
+        "paper_data_suite.workspace_cli",
     ],
 )
 def test_import_is_side_effect_free(

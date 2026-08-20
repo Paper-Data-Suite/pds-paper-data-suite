@@ -27,6 +27,13 @@ from paper_data_suite.compatibility import (
     load_release_compatibility_manifest,
 )
 from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
+from paper_data_suite.workspace_cli import (
+    run_workspace_reset,
+    run_workspace_set,
+    run_workspace_setup,
+    run_workspace_show,
+    run_workspace_validate,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,6 +66,51 @@ def build_parser() -> argparse.ArgumentParser:
             "inspect this workspace for this invocation only; do not save or "
             "initialize it"
         ),
+    )
+    workspace = subparsers.add_parser(
+        "workspace",
+        help="inspect, validate, select, or reset the shared Core workspace",
+        description=(
+            "Inspect or explicitly change the shared Paper Data Suite workspace "
+            "through suite-qualified public Core services."
+        ),
+    )
+    workspace.set_defaults(workspace_parser=workspace)
+    workspace_subparsers = workspace.add_subparsers(dest="workspace_command")
+    workspace_subparsers.add_parser(
+        "setup",
+        help="run guided review-before-write workspace setup",
+        description=(
+            "Guided workspace selection through Core with candidate preview, "
+            "explicit confirmation, and safe cancellation."
+        ),
+    )
+    workspace_subparsers.add_parser(
+        "show",
+        help="show the currently resolved workspace without changing it",
+    )
+    workspace_validate = workspace_subparsers.add_parser(
+        "validate",
+        help="validate an existing workspace without creating or saving it",
+    )
+    workspace_validate.add_argument(
+        "path",
+        nargs="?",
+        type=Path,
+        help="optional explicit workspace candidate; default is current resolution",
+    )
+    workspace_set = workspace_subparsers.add_parser(
+        "set",
+        help="initialize and save an explicit workspace through Core",
+    )
+    workspace_set.add_argument(
+        "path",
+        type=Path,
+        help="workspace path to initialize and save",
+    )
+    workspace_subparsers.add_parser(
+        "reset",
+        help="clear only Core's saved workspace preference",
     )
     subparsers.add_parser(
         "modules",
@@ -233,6 +285,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = collect_doctor_diagnostics(workspace=arguments.workspace)
         print(render_doctor_report(report), end="")
         return report.exit_code
+    if arguments.command == "workspace":
+        if arguments.workspace_command is None:
+            arguments.workspace_parser.print_help()
+            return 0
+        if arguments.workspace_command == "setup":
+            return run_workspace_setup()
+        if arguments.workspace_command == "show":
+            return run_workspace_show()
+        if arguments.workspace_command == "validate":
+            return run_workspace_validate(arguments.path)
+        if arguments.workspace_command == "set":
+            return run_workspace_set(arguments.path)
+        if arguments.workspace_command == "reset":
+            return run_workspace_reset()
+        raise AssertionError(
+            f"unhandled workspace command: {arguments.workspace_command}"
+        )
     if arguments.command == "modules":
         return _run_modules()
     if arguments.command == "launch":
