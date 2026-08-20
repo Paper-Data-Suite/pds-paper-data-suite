@@ -28,6 +28,8 @@ _PACKAGE_FILES = (
     "paper_data_suite/compatibility.py",
     "paper_data_suite/component_inspection.py",
     "paper_data_suite/environment_inspection.py",
+    "paper_data_suite/workspace_setup.py",
+    "paper_data_suite/workspace_cli.py",
     "paper_data_suite/data/__init__.py",
     "paper_data_suite/py.typed",
 )
@@ -170,6 +172,36 @@ def test_package_validator_requires_application_launching_runtime_module(
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/application_launching.py",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
+    ):
+        validate_wheel(wheel)
+
+def test_package_validator_requires_workspace_setup_runtime_module(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/workspace_setup.py",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
+    ):
+        validate_wheel(wheel)
+
+def test_package_validator_requires_workspace_cli_runtime_module(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/workspace_cli.py",
     )
 
     with pytest.raises(
