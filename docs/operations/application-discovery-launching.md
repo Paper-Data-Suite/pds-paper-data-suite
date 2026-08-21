@@ -140,6 +140,17 @@ The child process:
   to prevent source-checkout shadowing;
 - retains legitimate environment context such as `PDS_WORKSPACE_ROOT`.
 
+After the verified child process has actually started, `pds launch` may persist
+only that top-level suite component ID in the suite-owned bounded recent-component
+MRU. It does not persist module workflow context, student/class/assignment state,
+or a workspace selection. A child that cannot be started is not recorded; a child
+that starts and later exits nonzero is still a real recent application interaction.
+Settings persistence failure is reported as a bounded warning and does not replace
+the child application's exit outcome.
+
+The storage and privacy contract for that convenience state is documented in
+[`suite-settings.md`](suite-settings.md).
+
 The suite does not add application-specific arguments in this issue. Advanced or
 module-specific command-line operations remain available through each component's
 own direct CLI.
@@ -255,5 +266,7 @@ installed-console `pds modules` output to report every qualified application as
 It prepends foreign same-named commands to `PATH`, invokes the installed `pds`
 launcher directly, feeds the normal `Q` quit action to every current supported
 application menu, requires each launch to return success, and verifies that the
-foreign commands and synthetic workspace are untouched. On Windows the launcher
-under test is the environment's installed `pds.exe`.
+foreign commands and synthetic workspace are untouched. The smoke isolates the
+user-profile/configuration roots as well as the workspace so launch recency writes
+cannot modify a developer's real suite settings. On Windows the launcher under
+test is the environment's installed `pds.exe`.

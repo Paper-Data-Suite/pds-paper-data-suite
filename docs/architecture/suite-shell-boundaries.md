@@ -772,6 +772,13 @@ Suite settings MUST NOT store:
 
 Workspace selection remains Core-authoritative.
 
+Issue #12 implements this permission as a separate per-user suite preference file
+whose v1 schema is limited to record/version identity plus a bounded recent
+application MRU. The concrete storage, privacy, reset, and failure contract is
+[`../operations/suite-settings.md`](../operations/suite-settings.md). That
+implementation does not amend Core workspace authority or any module ownership in
+this document.
+
 ## 17. Privacy and diagnostics boundary
 
 The shell operates over workspaces that may contain sensitive educational

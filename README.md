@@ -17,9 +17,10 @@ installable. The shell now provides read-only environment diagnostics through
 `pds doctor`, suite-qualified application inventory through `pds modules`,
 verified out-of-process application launching through `pds launch <component-id>`,
 Core-backed workspace selection/validation through `pds workspace`, guided shared
-classroom setup through `pds setup`, and whole-workspace backup creation,
+classroom setup through `pds setup`, whole-workspace backup creation,
 independent verification, and safe alternate-location restore through
-`pds backup create`, `pds backup verify`, and `pds backup restore`.
+`pds backup create`, `pds backup verify`, and `pds backup restore`, plus a
+privacy-minimized per-user shell settings facility through `pds settings`.
 Additional teacher-facing workflows are added by later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
@@ -146,6 +147,39 @@ external prerequisite is healthy. Use `pds doctor` for broader environment healt
 The operational contract and installed-wheel acceptance requirements are
 documented in
 [`docs/operations/application-discovery-launching.md`](docs/operations/application-discovery-launching.md).
+
+## Suite settings and recent safe context
+
+Inspect suite-owned shell convenience settings with:
+
+```powershell
+pds settings show
+```
+
+Clear only recent top-level application context or reset all suite settings with:
+
+```powershell
+pds settings clear-recent
+pds settings reset
+```
+
+Schema v1 stores only the settings record/version identity and a bounded five-entry
+MRU list of exact suite-qualified top-level application IDs. It does not store an
+authoritative workspace path, class/assignment/student context, scores, reviews,
+grouping state, Grades, portfolio state, behavior/support state, credentials, or
+other module-owned data. `settings show` re-resolves stored component IDs against
+the current application inventory before presenting availability.
+
+The settings file lives in the normal per-user application configuration area,
+outside canonical Core workspaces. A missing file is normal first-run state and
+read-only import/help/show operations do not create it. Writes use complete
+validated documents and same-directory atomic replacement. `pds settings reset`
+and `pds settings clear-recent` never call Core workspace reset and never alter
+module-owned context.
+
+The storage contract, privacy and ownership boundaries, failure behavior, and
+installed-wheel acceptance are documented in
+[`docs/operations/suite-settings.md`](docs/operations/suite-settings.md).
 
 ## Workspace selection and validation
 
@@ -368,6 +402,10 @@ pds backup verify <backup>
 pds backup restore <backup> --destination <path> [--yes]
 pds modules
 pds launch <component-id>
+pds settings
+pds settings show
+pds settings clear-recent
+pds settings reset
 pds setup
 pds workspace setup
 pds workspace show
@@ -385,6 +423,10 @@ python -m paper_data_suite backup verify <backup>
 python -m paper_data_suite backup restore <backup> --destination <path> [--yes]
 python -m paper_data_suite modules
 python -m paper_data_suite launch <component-id>
+python -m paper_data_suite settings
+python -m paper_data_suite settings show
+python -m paper_data_suite settings clear-recent
+python -m paper_data_suite settings reset
 python -m paper_data_suite setup
 python -m paper_data_suite workspace setup
 python -m paper_data_suite workspace show
@@ -393,9 +435,12 @@ python -m paper_data_suite workspace set <path>
 python -m paper_data_suite workspace reset
 ```
 
-The help/version commands, `doctor`, `modules`, `workspace show`, and `backup`
-help do not create or select a workspace or perform classroom-data mutation.
-`doctor --workspace` is an invocation-scoped inspection override only.
+The help/version commands, `doctor`, `modules`, `workspace show`, `settings show`,
+and `backup` help do not create or select a workspace or perform classroom-data
+mutation. First-run settings import/help/show also do not create a settings file.
+`settings clear-recent` and `settings reset` mutate only the suite-owned per-user
+preference document; they never change Core workspace selection or module-owned
+context. `doctor --workspace` is an invocation-scoped inspection override only.
 `workspace validate` validates an existing candidate without initializing or
 saving it; `workspace setup`, `set`, and `reset` are the explicit workspace
 mutation surfaces. `pds setup` is the explicit shared-classroom mutation surface
@@ -456,12 +501,19 @@ by the manifest in one artifact directory and run:
 python .\scripts\smoke_test_application_wheels.py `
   <suite-wheel> `
   --artifact-dir <directory-containing-declared-wheels>
+
+python .\scripts\smoke_test_settings_wheels.py `
+  <suite-wheel> `
+  --artifact-dir <directory-containing-declared-wheels>
 ```
 
 The full-composition smoke authenticates the declared PDS component wheels before
 installation, resolves ordinary third-party Python dependencies through pip,
 verifies that every qualified application is `available`, and launches then quits
 each current teacher-facing menu through the installed `pds` console boundary.
+The settings smoke uses another isolated profile to prove no-write first-run
+read-only behavior, real installed-launch MRU updates, privacy-minimized serialized
+state, and unchanged Core workspace selection and bytes after clear/reset.
 
 To authenticate all exact component wheels declared by the manifest:
 
@@ -493,6 +545,9 @@ Do not place a real classroom PDS workspace inside this repository.
 - [`docs/operations/application-discovery-launching.md`](docs/operations/application-discovery-launching.md)
   — suite-qualified application inventory, safe launcher resolution, and process
   boundary.
+- [`docs/operations/suite-settings.md`](docs/operations/suite-settings.md)
+  — privacy-minimized per-user shell settings, recent component MRU, and Core/module
+  ownership boundaries.
 - [`docs/operations/workspace-setup.md`](docs/operations/workspace-setup.md)
   — Core-backed workspace selection, validation, guided setup, and reset.
 - [`docs/operations/shared-classroom-setup.md`](docs/operations/shared-classroom-setup.md)

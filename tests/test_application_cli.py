@@ -50,6 +50,13 @@ def _console_script_path() -> Path:
     return Path(sysconfig.get_path("scripts")) / script_name
 
 
+@pytest.fixture(autouse=True)
+def _isolate_suite_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    import paper_data_suite.cli as cli
+
+    monkeypatch.setattr(cli, "record_recent_component", lambda component_id: None)
+
+
 def test_render_application_inventory_is_teacher_facing_and_bounded() -> None:
     inventory = ApplicationInventory(
         (
