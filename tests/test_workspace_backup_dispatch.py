@@ -14,8 +14,9 @@ def test_backup_group_without_subcommand_shows_help(
     output = capsys.readouterr().out
     normalized = " ".join(output.split())
     assert "usage: pds backup" in normalized
-    assert "{create}" in normalized
-    assert "currently resolved Core workspace" in normalized
+    assert "{create,verify,restore}" in normalized
+    assert "independently verify a completed backup" in normalized
+    assert "Restore never automatically selects" in normalized
 
 
 def test_backup_create_help_documents_explicit_sensitive_copy_boundary(

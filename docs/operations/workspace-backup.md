@@ -360,21 +360,21 @@ Exit behavior is:
 `Workspace backup complete` is printed only after verified staging has been
 published at the final backup path.
 
-## Restore boundary
+## Verification and restore boundary
 
-Issue #10 implements **creation-time self-verification only**. It does not claim that
-a backup can yet be restored.
+Creation-time self-verification remains part of `pds backup create`.
 
-The following backup/restore issue owns:
+Independent later verification and recovery are now provided by:
 
 ```text
-pds backup verify
-pds backup restore
+pds backup verify <backup>
+pds backup restore <backup> --destination <path>
 ```
 
-That work must independently validate this manifest/inventory/hashes and restore only
-to an explicit alternate safe location. A restored workspace must not become the
-selected Core workspace automatically.
+Those commands consume this unchanged v1 manifest/layout contract. Restore is limited
+to a new explicit alternate location and never automatically changes Core's selected
+workspace. See [`workspace-restore.md`](workspace-restore.md) for the verification,
+restore, drift, staging, publication, and selection-boundary contract.
 
 ## Installed-wheel acceptance
 
@@ -396,10 +396,8 @@ with synthetic data only, that:
 
 ## Non-goals
 
-Backup creation does not provide:
+Backup creation itself does not provide:
 
-- restore;
-- a standalone verification command;
 - in-place active-workspace replacement;
 - automatic selection of restored workspaces;
 - ZIP/TAR archives;

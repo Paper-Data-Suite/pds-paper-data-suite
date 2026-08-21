@@ -117,6 +117,24 @@ jobs:
             "$suiteWheel" `
             "$env:PDS_CORE_WHEEL"
 
+      - name: Installed workspace restore acceptance
+        if: matrix.python == '3.11'
+        shell: pwsh
+        run: |
+          $wheels = @(
+            Get-ChildItem `
+              -LiteralPath $env:PDS_DIST_DIR `
+              -Filter "*.whl" `
+              -File
+          )
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one suite wheel; found $($wheels.Count)."
+          }
+
+          python scripts/smoke_test_workspace_restore_wheel.py `
+            "$($wheels[0].FullName)" `
+            "$env:PDS_CORE_WHEEL"
+
       - name: Verify repository hygiene
         shell: pwsh
         run: |

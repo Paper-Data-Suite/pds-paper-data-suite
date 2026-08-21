@@ -28,7 +28,11 @@ from paper_data_suite.compatibility import (
     load_release_compatibility_manifest,
 )
 from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
-from paper_data_suite.workspace_backup_cli import run_workspace_backup_create
+from paper_data_suite.workspace_backup_cli import (
+    run_workspace_backup_create,
+    run_workspace_backup_restore,
+    run_workspace_backup_verify,
+)
 from paper_data_suite.workspace_cli import (
     run_workspace_reset,
     run_workspace_set,
@@ -116,11 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     backup = subparsers.add_parser(
         "backup",
-        help="create protected whole-workspace backups",
+        help="create, verify, or safely restore whole-workspace backups",
         description=(
-            "Create protected whole-workspace backups of the currently resolved "
-            "Core workspace. Backup copies are opaque byte custody: PDS does not "
-            "rewrite owner records, encrypt, upload, or cloud-sync them."
+            "Create protected whole-workspace backups, independently verify a "
+            "completed backup, or restore verified opaque workspace bytes to a "
+            "new explicit alternate location. Restore never automatically selects "
+            "the recovered workspace."
         ),
     )
     backup.set_defaults(backup_parser=backup)
@@ -145,6 +150,47 @@ def build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="create after preflight without the interactive BACKUP confirmation",
+    )
+    backup_verify = backup_subparsers.add_parser(
+        "verify",
+        help="independently verify a completed workspace backup",
+        description=(
+            "Verify the completed backup-v1 manifest, exact payload inventory, "
+            "sizes, and SHA-256 hashes without modifying the backup or resolving "
+            "the active Core workspace. Integrity verification is not a digital "
+            "signature or runtime-compatibility guarantee."
+        ),
+    )
+    backup_verify.add_argument(
+        "backup",
+        type=Path,
+        help="explicit completed backup root containing manifest.json and workspace/",
+    )
+    backup_restore = backup_subparsers.add_parser(
+        "restore",
+        help="restore a verified backup to a new alternate workspace location",
+        description=(
+            "Verify a completed backup and restore its opaque workspace payload to "
+            "one explicit destination that must not already exist. The active Core "
+            "workspace is protected and the restored workspace is not selected "
+            "automatically."
+        ),
+    )
+    backup_restore.add_argument(
+        "backup",
+        type=Path,
+        help="explicit completed backup root containing manifest.json and workspace/",
+    )
+    backup_restore.add_argument(
+        "--destination",
+        required=True,
+        type=Path,
+        help="exact final restored workspace root; it must not already exist",
+    )
+    backup_restore.add_argument(
+        "--yes",
+        action="store_true",
+        help="restore after full preflight without interactive RESTORE confirmation",
     )
     subparsers.add_parser(
         "setup",
@@ -352,6 +398,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if arguments.backup_command == "create":
             return run_workspace_backup_create(
+                arguments.destination,
+                assume_yes=arguments.yes,
+            )
+        if arguments.backup_command == "verify":
+            return run_workspace_backup_verify(arguments.backup)
+        if arguments.backup_command == "restore":
+            return run_workspace_backup_restore(
+                arguments.backup,
                 arguments.destination,
                 assume_yes=arguments.yes,
             )

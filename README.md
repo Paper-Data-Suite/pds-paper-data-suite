@@ -17,9 +17,10 @@ installable. The shell now provides read-only environment diagnostics through
 `pds doctor`, suite-qualified application inventory through `pds modules`,
 verified out-of-process application launching through `pds launch <component-id>`,
 Core-backed workspace selection/validation through `pds workspace`, guided shared
-classroom setup through `pds setup`, and verified whole-workspace backup creation
-through `pds backup create`. Additional teacher-facing workflows are added by
-later v0.1.0 issues.
+classroom setup through `pds setup`, and whole-workspace backup creation,
+independent verification, and safe alternate-location restore through
+`pds backup create`, `pds backup verify`, and `pds backup restore`.
+Additional teacher-facing workflows are added by later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
 `pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
@@ -276,13 +277,46 @@ confidentiality or digital-signature authenticity. External synchronization of a
 chosen OneDrive or other managed folder remains behavior of that storage system,
 not PDS.
 
-Issue #10 implements creation-time self-verification only. Standalone backup
-verification and restore-to-an-explicit-alternate-location belong to the following
-backup/restore issue.
-
 The manifest/layout contract, privacy boundary, staging/publication model, source
 consistency limits, and installed-wheel acceptance are documented in
 [`docs/operations/workspace-backup.md`](docs/operations/workspace-backup.md).
+
+## Workspace backup verification and restore
+
+Independently verify a completed backup with:
+
+```powershell
+pds backup verify "D:\\PDS Backups\\pds-workspace-backup-<timestamp>"
+```
+
+Restore verified opaque workspace bytes to a new explicit alternate location with:
+
+```powershell
+pds backup restore `
+  "D:\\PDS Backups\\pds-workspace-backup-<timestamp>" `
+  --destination "D:\\PDS Recovery\\restored-workspace"
+```
+
+`backup verify` is read-only and checks completed-backup identity, canonical
+manifest bytes, exact directory/file inventory, sizes, and streamed SHA-256
+digests. It does not resolve Core or require sibling applications. SHA-256 proves
+agreement with the supplied manifest, not who created the backup or whether its
+records are semantically compatible with every currently installed component.
+
+`backup restore` fully verifies the backup before preview and again before
+mutation, exactly qualifies Core to protect the currently resolved workspace,
+requires a nonexistent explicit destination, stages and independently verifies
+the restored byte tree, and publishes only after integrity checks succeed.
+Interactive restore requires exact uppercase `RESTORE`; `--yes` bypasses only
+that prompt.
+
+Restore never merges into or overwrites an existing directory, never rewrites
+owner records, and never automatically selects the recovered workspace. To adopt
+a restored copy later, use a separate intentional `pds workspace set <path>`.
+
+The verification/restore contract, failure semantics, privacy boundary, and
+installed-wheel acceptance are documented in
+[`docs/operations/workspace-restore.md`](docs/operations/workspace-restore.md).
 
 ## Architecture direction
 
@@ -330,6 +364,8 @@ pds doctor
 pds doctor --workspace <path>
 pds backup
 pds backup create --destination <path> [--yes]
+pds backup verify <backup>
+pds backup restore <backup> --destination <path> [--yes]
 pds modules
 pds launch <component-id>
 pds setup
@@ -345,6 +381,8 @@ python -m paper_data_suite --version
 python -m paper_data_suite doctor
 python -m paper_data_suite backup
 python -m paper_data_suite backup create --destination <path> [--yes]
+python -m paper_data_suite backup verify <backup>
+python -m paper_data_suite backup restore <backup> --destination <path> [--yes]
 python -m paper_data_suite modules
 python -m paper_data_suite launch <component-id>
 python -m paper_data_suite setup
@@ -363,8 +401,11 @@ saving it; `workspace setup`, `set`, and `reset` are the explicit workspace
 mutation surfaces. `pds setup` is the explicit shared-classroom mutation surface
 and remains read-only until exact final `APPLY`. `pds backup create` leaves the
 source workspace read-only and creates an external copy only after exact `BACKUP`
-or explicit `--yes`. `launch` crosses only the verified public application boundary;
-module-owned behavior remains owned by the launched application.
+or explicit `--yes`. `pds backup verify` is read-only. `pds backup restore`
+creates only a new verified alternate workspace after exact `RESTORE` or explicit
+`--yes`; it never changes Core's selected workspace. `launch` crosses only the
+verified public application boundary; module-owned behavior remains owned by the
+launched application.
 
 ## Development validation
 
@@ -390,6 +431,7 @@ python .\scripts\smoke_test_wheel.py <suite-wheel> <core-wheel>
 python .\scripts\smoke_test_workspace_wheel.py <suite-wheel> <core-wheel>
 python .\scripts\smoke_test_classroom_setup_wheel.py <suite-wheel> <core-wheel>
 python .\scripts\smoke_test_workspace_backup_wheel.py <suite-wheel> <core-wheel>
+python .\scripts\smoke_test_workspace_restore_wheel.py <suite-wheel> <core-wheel>
 ```
 
 The Core-only smoke proves legitimate partial installation behavior. The dedicated
@@ -402,8 +444,12 @@ suite setup-plan artifacts, and idempotent reruns. The dedicated workspace-backu
 smoke uses another isolated profile to prove module/console command installation,
 mutation-free cancellation, inside-workspace refusal, source immutability, complete
 opaque payload/hash inventory, manifest privacy, non-overwrite collision behavior,
-and absence of sibling-module requirements. To exercise the complete
-suite-qualified application composition, place every exact component wheel declared
+and absence of sibling-module requirements. The dedicated workspace-restore smoke
+uses another isolated profile to prove standalone verification, restore cancellation,
+active-workspace protection, byte-exact alternate restore, unchanged Core selection,
+existing-destination refusal, incomplete/tampered-backup refusal, and absence of
+sibling-module requirements. To exercise the complete suite-qualified application
+composition, place every exact component wheel declared
 by the manifest in one artifact directory and run:
 
 ```powershell
@@ -454,6 +500,8 @@ Do not place a real classroom PDS workspace inside this repository.
 - [`docs/operations/workspace-backup.md`](docs/operations/workspace-backup.md)
   — whole-workspace opaque backup creation, deterministic manifest, safety, and
   acceptance.
+- [`docs/operations/workspace-restore.md`](docs/operations/workspace-restore.md)
+  — independent backup verification and safe alternate-location restore.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
