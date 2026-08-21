@@ -36,6 +36,8 @@ REQUIRED_PACKAGE_FILES = frozenset(
         "paper_data_suite/compatibility.py",
         "paper_data_suite/component_inspection.py",
         "paper_data_suite/environment_inspection.py",
+        "paper_data_suite/settings.py",
+        "paper_data_suite/settings_cli.py",
         "paper_data_suite/workspace_setup.py",
         "paper_data_suite/workspace_cli.py",
         "paper_data_suite/data/__init__.py",

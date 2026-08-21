@@ -28,6 +28,12 @@ from paper_data_suite.compatibility import (
     load_release_compatibility_manifest,
 )
 from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
+from paper_data_suite.settings import SuiteSettingsError, record_recent_component
+from paper_data_suite.settings_cli import (
+    run_settings_clear_recent,
+    run_settings_reset,
+    run_settings_show,
+)
 from paper_data_suite.workspace_backup_cli import (
     run_workspace_backup_create,
     run_workspace_backup_restore,
@@ -117,6 +123,41 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_subparsers.add_parser(
         "reset",
         help="clear only Core's saved workspace preference",
+    )
+    settings = subparsers.add_parser(
+        "settings",
+        help="inspect, clear, or reset suite-owned shell convenience settings",
+        description=(
+            "Inspect or manage privacy-minimized per-user Paper Data Suite shell "
+            "settings. These settings never own Core workspace selection or "
+            "module workflow state."
+        ),
+    )
+    settings.set_defaults(settings_parser=settings)
+    settings_subparsers = settings.add_subparsers(dest="settings_command")
+    settings_subparsers.add_parser(
+        "show",
+        help="show bounded suite settings and current component availability",
+        description=(
+            "Show suite-owned convenience settings without dumping raw JSON or "
+            "treating settings as a workspace authority."
+        ),
+    )
+    settings_subparsers.add_parser(
+        "clear-recent",
+        help="clear only recent top-level suite component context",
+        description=(
+            "Clear only the bounded recent-component list. Core workspace "
+            "selection and module-owned context are not changed."
+        ),
+    )
+    settings_subparsers.add_parser(
+        "reset",
+        help="replace only suite shell settings with safe defaults",
+        description=(
+            "Atomically replace the suite preference document with schema-v1 "
+            "defaults without changing Core workspace selection or module state."
+        ),
     )
     backup = subparsers.add_parser(
         "backup",
@@ -354,6 +395,16 @@ def _run_launch(component_id: str) -> int:
         print(f"Launch failed: {error}", file=sys.stderr)
         return 1
 
+    try:
+        record_recent_component(result.component_id)
+    except SuiteSettingsError as error:
+        message = str(error)[:300] or error.__class__.__name__
+        print(
+            "Warning: application started, but recent component context was not saved.",
+            file=sys.stderr,
+        )
+        print(f"Settings detail: {message}", file=sys.stderr)
+
     if not result.succeeded:
         print(
             f"{result.display_name} exited with status {result.exit_code}.",
@@ -391,6 +442,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return run_workspace_reset()
         raise AssertionError(
             f"unhandled workspace command: {arguments.workspace_command}"
+        )
+    if arguments.command == "settings":
+        if arguments.settings_command is None:
+            arguments.settings_parser.print_help()
+            return 0
+        if arguments.settings_command == "show":
+            return run_settings_show()
+        if arguments.settings_command == "clear-recent":
+            return run_settings_clear_recent()
+        if arguments.settings_command == "reset":
+            return run_settings_reset()
+        raise AssertionError(
+            f"unhandled settings command: {arguments.settings_command}"
         )
     if arguments.command == "backup":
         if arguments.backup_command is None:

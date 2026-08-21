@@ -290,9 +290,11 @@ def smoke_test(suite_wheel: Path, artifact_dir: Path) -> None:
         environment = temp_root / "venv"
         run_directory = temp_root / "run"
         foreign_bin = temp_root / "foreign-bin"
+        user_home = temp_root / "user"
         missing_workspace = temp_root / "synthetic-missing-workspace"
         run_directory.mkdir()
         foreign_bin.mkdir()
+        user_home.mkdir()
 
         venv.EnvBuilder(with_pip=True).create(environment)
         python = _venv_python(environment)
@@ -326,6 +328,11 @@ def smoke_test(suite_wheel: Path, artifact_dir: Path) -> None:
         )
 
         command_env = dict(install_env)
+        command_env["HOME"] = str(user_home)
+        command_env["USERPROFILE"] = str(user_home)
+        command_env["LOCALAPPDATA"] = str(user_home / "AppData" / "Local")
+        command_env["APPDATA"] = str(user_home / "AppData" / "Roaming")
+        command_env["XDG_CONFIG_HOME"] = str(user_home / ".config")
         command_env["PDS_WORKSPACE_ROOT"] = str(missing_workspace)
 
         foreign_markers: dict[str, Path] = {}
