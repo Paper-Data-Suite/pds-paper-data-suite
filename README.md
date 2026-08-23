@@ -354,6 +354,32 @@ The verification/restore contract, failure semantics, privacy boundary, and
 installed-wheel acceptance are documented in
 [`docs/operations/workspace-restore.md`](docs/operations/workspace-restore.md).
 
+## Combined installed-suite acceptance
+
+The focused installed-wheel smokes remain required, but the repository also has a
+combined acceptance harness that installs the exact manifest-qualified composition
+once and carries one synthetic workspace through the complete suite-shell workflow:
+health checks, guided workspace/classroom setup, provider diagnostics, all current
+application launch boundaries, privacy-minimized settings, opaque backup creation,
+independent verification, alternate restore, and restored-state inspection.
+
+Run it with a freshly built suite wheel and an authenticated directory containing
+all exact component wheels declared by the active manifest:
+
+```powershell
+python .\scripts\smoke_test_combined_suite_wheels.py `
+  <suite-wheel> `
+  --artifact-dir <directory-containing-declared-wheels>
+```
+
+The harness uses one isolated installed environment and one continuous synthetic
+Core workspace. It does not create native ScoreForm, Quillan, Concord, or Vitrine
+domain records and does not replace the focused smoke tests.
+
+The complete composition, isolation, ownership, opaque-custody, restore, CI-matrix,
+and non-goal contract is documented in
+[`docs/operations/combined-installed-suite-acceptance.md`](docs/operations/combined-installed-suite-acceptance.md).
+
 ## Architecture direction
 
 The suite shell is an orchestration and teacher-convenience layer, not a second
@@ -507,7 +533,17 @@ python .\scripts\smoke_test_application_wheels.py `
 python .\scripts\smoke_test_settings_wheels.py `
   <suite-wheel> `
   --artifact-dir <directory-containing-declared-wheels>
+
+python .\scripts\smoke_test_combined_suite_wheels.py `
+  <suite-wheel> `
+  --artifact-dir <directory-containing-declared-wheels>
 ```
+
+The combined installed-suite smoke keeps one exact installed environment and one
+continuous synthetic workspace across workspace/classroom setup, provider health,
+application launch boundaries, settings, opaque backup, verification, alternate
+restore, and restored Core-state inspection. It complements rather than replaces
+the focused application/settings/backup/restore smokes.
 
 The full-composition smoke authenticates the declared PDS component wheels before
 installation, resolves ordinary third-party Python dependencies through pip,
@@ -559,6 +595,9 @@ Do not place a real classroom PDS workspace inside this repository.
   acceptance.
 - [`docs/operations/workspace-restore.md`](docs/operations/workspace-restore.md)
   — independent backup verification and safe alternate-location restore.
+- [`docs/operations/combined-installed-suite-acceptance.md`](docs/operations/combined-installed-suite-acceptance.md)
+  — one-environment, one-workspace exact-composition acceptance through restored
+  state, with Windows/Linux and Python-minor CI coverage.
 - [`docs/development-plan.md`](docs/development-plan.md) — suite-wide
   pilot-readiness and development program.
 - [`docs/pds-viz-identity.md`](docs/pds-viz-identity.md) — shared Paper Data
