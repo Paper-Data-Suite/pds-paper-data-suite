@@ -43,14 +43,16 @@ def test_combined_acceptance_ci_builds_candidate_and_runs_installed_harness() ->
     block = _combined_job()
 
     build_index = block.index("Build candidate suite wheel")
+    tooling_index = block.index("Install suite package for audit tooling")
     auth_index = block.index("Authenticate exact component artifacts")
     acceptance_index = block.index("Run combined installed-suite acceptance")
     hygiene_index = block.index("Verify combined-acceptance repository hygiene")
 
-    assert build_index < auth_index < acceptance_index < hygiene_index
+    assert build_index < tooling_index < auth_index < acceptance_index < hygiene_index
     assert "python -m build --outdir" in block
     assert "python -m twine check" in block
     assert "python scripts/check_package.py" in block
+    assert "python -m pip install --no-deps -e ." in block
     assert "python scripts/smoke_test_combined_suite_wheels.py" in block
 
 
