@@ -44,7 +44,7 @@ def test_main_returns_failure_when_smoke_test_fails(
     assert "synthetic failure" in capsys.readouterr().err
 
 
-def test_doctor_output_assertion_requires_reduced_fidelity_sections() -> None:
+def test_doctor_output_assertion_requires_core_v062_provider_sections() -> None:
     output = "\n".join(
         (
             "Paper Data Suite doctor",
@@ -60,11 +60,9 @@ def test_doctor_output_assertion_requires_reduced_fidelity_sections() -> None:
             "Modules",
             "Overall",
             "No accessible workspace currently exists at the resolved path.",
-            (
-                "Routing/publication provider compatibility has reduced "
-                "diagnostic fidelity."
-            ),
-            "Shared module-reported readiness is not available.",
+            "Core failure-isolated provider diagnostics are available.",
+            "Core module-operations contract v1 is available.",
+            "No suite-qualified module readiness provider is available.",
         )
     )
 

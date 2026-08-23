@@ -211,7 +211,7 @@ The current development manifest qualifies these exact component versions:
 
 | Component | Distribution | Version | Required |
 |---|---|---:|---|
-| Core | `pds-core` | `0.6.0` | yes |
+| Core | `pds-core` | `0.6.2` | yes |
 | Concord | `pds-concord` | `0.2.0` | no |
 | Quillan | `quillan` | `0.9.0` | no |
 | ScoreForm | `scoreform` | `0.10.0` | no |

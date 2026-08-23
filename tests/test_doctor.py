@@ -22,10 +22,10 @@ from paper_data_suite.doctor import (
     DiagnosticStatus,
     DoctorReport,
     EntryPointObservation,
+    collect_core_provider_diagnostics,
     collect_doctor_diagnostics,
     collect_entry_point_core_diagnostics,
     collect_environment_dependency_diagnostics,
-    collect_reduced_provider_diagnostics,
     collect_runtime_package_diagnostics,
     collect_workspace_registry_diagnostics,
     combine_reports,
@@ -102,7 +102,7 @@ def _manifest() -> ReleaseCompatibilityManifest:
             _component(
                 "core",
                 "pds-core",
-                "0.6.0",
+                "0.6.2",
                 required=True,
                 capabilities=("shared_core",),
             ),
@@ -245,7 +245,7 @@ def test_runtime_package_diagnostics_accept_exact_qualified_environment() -> Non
         version_lookup=_lookup(
             {
                 "paper-data-suite": "0.1.0.dev0",
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
                 "pds-optional": "1.2.3",
             }
         ),
@@ -269,7 +269,7 @@ def test_runtime_package_diagnostics_fail_unqualified_python() -> None:
         version_lookup=_lookup(
             {
                 "paper-data-suite": "0.1.0.dev0",
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
             }
         ),
     )
@@ -286,7 +286,7 @@ def test_runtime_package_diagnostics_fail_when_suite_metadata_missing() -> None:
         _manifest(),
         python_version=(3, 11, 0),
         python_executable="python",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
     )
 
     check = report.checks[1]
@@ -303,7 +303,7 @@ def test_runtime_package_diagnostics_fail_suite_version_mismatch() -> None:
         version_lookup=_lookup(
             {
                 "paper-data-suite": "9.9.9",
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
             }
         ),
     )
@@ -340,7 +340,7 @@ def test_runtime_package_diagnostics_skip_optional_component_absence() -> None:
         version_lookup=_lookup(
             {
                 "paper-data-suite": "0.1.0.dev0",
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
             }
         ),
     )
@@ -371,7 +371,7 @@ def test_runtime_package_diagnostics_fail_component_version_mismatch() -> None:
     assert core.code == "package.version_mismatch"
     assert core.status is DiagnosticStatus.FAIL
     assert "0.6.1" in core.summary
-    assert "0.6.0" in core.summary
+    assert "0.6.2" in core.summary
     assert optional.code == "package.version_mismatch"
     assert optional.status is DiagnosticStatus.FAIL
     assert report.failure_count == 2
@@ -385,7 +385,7 @@ def test_runtime_package_diagnostics_do_not_import_optional_components() -> None
         if distribution == "paper-data-suite":
             return "0.1.0.dev0"
         if distribution == "pds-core":
-            return "0.6.0"
+            return "0.6.2"
         raise metadata.PackageNotFoundError(distribution)
 
     collect_runtime_package_diagnostics(
@@ -411,7 +411,7 @@ def test_environment_dependency_diagnostics_accept_matching_marker_and_pip(
         platform="win32",
         version_lookup=_lookup(
             {
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
                 "pds-optional": "1.2.3",
             }
         ),
@@ -436,7 +436,7 @@ def test_environment_dependency_diagnostics_warn_when_marker_missing(
         environment_root=tmp_path,
         python_executable="python",
         platform="win32",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         command_runner=_completed(0),
     )
 
@@ -458,7 +458,7 @@ def test_environment_dependency_diagnostics_fail_invalid_marker(tmp_path: Path) 
         environment_root=tmp_path,
         python_executable="python",
         platform="darwin",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         command_runner=_completed(0),
     )
 
@@ -481,7 +481,7 @@ def test_environment_dependency_diagnostics_fail_marker_composition_mismatch(
         environment_root=tmp_path,
         python_executable="python",
         platform="darwin",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         manifest_digest_lookup=lambda: "a" * 64,
         command_runner=_completed(0),
     )
@@ -501,7 +501,7 @@ def test_environment_dependency_diagnostics_report_pip_check_failure(
         environment_root=tmp_path,
         python_executable="python",
         platform="darwin",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         command_runner=_completed(
             1,
             stderr=(
@@ -527,7 +527,7 @@ def test_environment_dependency_diagnostics_bound_pip_check_output(
         environment_root=tmp_path,
         python_executable="python",
         platform="darwin",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         command_runner=_completed(1, stderr=output),
     )
 
@@ -555,7 +555,7 @@ def test_environment_dependency_diagnostics_report_pip_timeout(
         environment_root=tmp_path,
         python_executable="python",
         platform="darwin",
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         command_runner=timeout_runner,
         pip_check_timeout_seconds=3.0,
     )
@@ -576,7 +576,7 @@ def test_external_prerequisite_missing_is_failure_for_qualified_consumer(
         platform="linux",
         version_lookup=_lookup(
             {
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
                 "pds-optional": "1.2.3",
             }
         ),
@@ -607,7 +607,7 @@ def test_external_prerequisite_skips_mismatched_optional_consumer(
         platform="win32",
         version_lookup=_lookup(
             {
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
                 "pds-optional": "9.9.9",
             }
         ),
@@ -629,7 +629,7 @@ def test_external_prerequisite_is_platform_scoped(tmp_path: Path) -> None:
         platform="darwin",
         version_lookup=_lookup(
             {
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
                 "pds-optional": "1.2.3",
             }
         ),
@@ -682,13 +682,13 @@ def test_entry_point_core_diagnostics_accept_exact_metadata_and_core_contracts(
         _manifest(),
         version_lookup=_lookup(
             {
-                "pds-core": "0.6.0",
+                "pds-core": "0.6.2",
                 "pds-optional": "1.2.3",
             }
         ),
         entry_point_inventory_lookup=lambda: (
             _entry_point("optional", "pds-optional", "1.2.3"),
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
         ),
         module_importer=_core_importer(),
     )
@@ -706,9 +706,9 @@ def test_entry_point_core_diagnostics_accept_exact_metadata_and_core_contracts(
 def test_entry_point_core_diagnostics_skip_unqualified_optional_component() -> None:
     report = collect_entry_point_core_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
         ),
         module_importer=_core_importer(),
     )
@@ -724,10 +724,10 @@ def test_entry_point_core_diagnostics_fail_missing_expected_entry_point() -> Non
     report = collect_entry_point_core_diagnostics(
         _manifest(),
         version_lookup=_lookup(
-            {"pds-core": "0.6.0", "pds-optional": "1.2.3"}
+            {"pds-core": "0.6.2", "pds-optional": "1.2.3"}
         ),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
         ),
         module_importer=_core_importer(),
     )
@@ -742,10 +742,10 @@ def test_entry_point_core_diagnostics_fail_target_mismatch() -> None:
     report = collect_entry_point_core_diagnostics(
         _manifest(),
         version_lookup=_lookup(
-            {"pds-core": "0.6.0", "pds-optional": "1.2.3"}
+            {"pds-core": "0.6.2", "pds-optional": "1.2.3"}
         ),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
             _entry_point(
                 "optional",
                 "pds-optional",
@@ -766,10 +766,10 @@ def test_entry_point_core_diagnostics_fail_wrong_owner() -> None:
     report = collect_entry_point_core_diagnostics(
         _manifest(),
         version_lookup=_lookup(
-            {"pds-core": "0.6.0", "pds-optional": "1.2.3"}
+            {"pds-core": "0.6.2", "pds-optional": "1.2.3"}
         ),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
             _entry_point("optional", "other-package", "4.5.6"),
         ),
         module_importer=_core_importer(),
@@ -785,10 +785,10 @@ def test_entry_point_core_diagnostics_fail_foreign_conflict() -> None:
     report = collect_entry_point_core_diagnostics(
         _manifest(),
         version_lookup=_lookup(
-            {"pds-core": "0.6.0", "pds-optional": "1.2.3"}
+            {"pds-core": "0.6.2", "pds-optional": "1.2.3"}
         ),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
             _entry_point("optional", "pds_optional", "1.2.3"),
             _entry_point("optional", "other-package", "4.5.6"),
         ),
@@ -805,10 +805,10 @@ def test_entry_point_core_diagnostics_fail_duplicate_owner_definition() -> None:
     report = collect_entry_point_core_diagnostics(
         _manifest(),
         version_lookup=_lookup(
-            {"pds-core": "0.6.0", "pds-optional": "1.2.3"}
+            {"pds-core": "0.6.2", "pds-optional": "1.2.3"}
         ),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
             optional,
             optional,
         ),
@@ -826,7 +826,7 @@ def test_entry_point_inventory_failure_does_not_block_core_contract_checks() -> 
 
     report = collect_entry_point_core_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         entry_point_inventory_lookup=unavailable,
         module_importer=_core_importer(),
     )
@@ -870,9 +870,9 @@ def test_core_contract_checks_isolate_missing_and_failed_public_contracts() -> N
 
     report = collect_entry_point_core_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         entry_point_inventory_lookup=lambda: (
-            _entry_point("core", "pds-core", "0.6.0"),
+            _entry_point("core", "pds-core", "0.6.2"),
         ),
         module_importer=importer,
     )
@@ -960,7 +960,7 @@ def test_workspace_registry_diagnostics_use_explicit_override_read_only(
     report = collect_workspace_registry_diagnostics(
         _manifest(),
         workspace=tmp_path,
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=services,
     )
 
@@ -1018,7 +1018,7 @@ def test_workspace_registry_diagnostics_warn_missing_workspace(tmp_path: Path) -
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=services,
     )
 
@@ -1052,7 +1052,7 @@ def test_workspace_registry_diagnostics_fail_inaccessible_workspace(
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=_workspace_services(status=status),
     )
 
@@ -1092,7 +1092,7 @@ def test_workspace_registry_diagnostics_isolate_school_year_failure(
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=services,
     )
 
@@ -1108,7 +1108,7 @@ def test_workspace_registry_diagnostics_warn_no_active_school_year(
     status = _workspace_status(tmp_path)
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=_workspace_services(status=status, school_year=None),
     )
 
@@ -1135,7 +1135,7 @@ def test_workspace_registry_diagnostics_surface_registry_health(
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=_workspace_services(status=status, registry=registry),
     )
 
@@ -1164,7 +1164,7 @@ def test_workspace_registry_diagnostics_warn_missing_catalog(tmp_path: Path) -> 
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=_workspace_services(status=status, registry=registry),
     )
 
@@ -1192,7 +1192,7 @@ def test_workspace_registry_diagnostics_isolate_registry_failure(
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=services,
     )
 
@@ -1213,7 +1213,7 @@ def test_workspace_registry_diagnostics_fail_missing_core_service() -> None:
 
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         module_importer=importer,
     )
 
@@ -1257,7 +1257,7 @@ def test_workspace_registry_diagnostics_load_public_core_services(
 
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         module_importer=importer,
     )
 
@@ -1284,7 +1284,7 @@ def test_workspace_registry_diagnostics_isolate_workspace_inspection_failure(
     )
     report = collect_workspace_registry_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
         services=services,
     )
 
@@ -1294,28 +1294,143 @@ def test_workspace_registry_diagnostics_isolate_workspace_inspection_failure(
     assert report.checks[2].status is DiagnosticStatus.SKIP
 
 
-def test_reduced_provider_diagnostics_are_explicit_skips() -> None:
-    report = collect_reduced_provider_diagnostics(
+def _provider_modules(
+    results: tuple[object, ...],
+) -> dict[str, object]:
+    return {
+        "pds_core.provider_diagnostics": SimpleNamespace(
+            diagnose_core_providers=lambda: results,
+        ),
+        "pds_core.module_operations": SimpleNamespace(
+            MODULE_OPERATIONS_CONTRACT_VERSION="1",
+            MODULE_OPERATIONS_ENTRY_POINT_GROUP="paper_data_suite.module_operations",
+            invoke_module_readiness=lambda *args, **kwargs: None,
+            invoke_module_attention=lambda *args, **kwargs: None,
+        ),
+    }
+
+
+def _provider_result(
+    *,
+    kind: str,
+    name: str,
+    code: str = "provider.valid",
+    stage: str = "valid",
+    message: str = "Provider satisfies the active Core contract.",
+    owner: str | None = "synthetic-package",
+) -> SimpleNamespace:
+    groups = {
+        "routing_module": "paper_data_suite.modules",
+        "publication_producer": "paper_data_suite.publication_producers",
+        "module_operations": "paper_data_suite.module_operations",
+    }
+    return SimpleNamespace(
+        metadata=SimpleNamespace(
+            provider_kind=kind,
+            entry_point_group=groups[kind],
+            entry_point_name=name,
+            entry_point_target=f"synthetic.{name}:profile",
+            distribution_name=owner,
+        ),
+        stage=stage,
+        code=code,
+        message=message,
+    )
+
+
+def test_core_provider_diagnostics_translate_failure_isolated_core_results() -> None:
+    results = (
+        _provider_result(kind="routing_module", name="optional"),
+        _provider_result(
+            kind="publication_producer",
+            name="broken",
+            code="provider.load_failed",
+            stage="load",
+            message="Entry-point object could not be loaded.",
+        ),
+    )
+    modules = _provider_modules(results)
+
+    report = collect_core_provider_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.0"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
+        module_importer=lambda name: modules[name],
+    )
+
+    providers = report.for_section("Providers")
+    assert tuple((check.code, check.status) for check in providers) == (
+        ("providers.diagnostics_contract_available", DiagnosticStatus.PASS),
+        ("provider.valid", DiagnosticStatus.PASS),
+        ("provider.load_failed", DiagnosticStatus.FAIL),
+    )
+    module_checks = report.for_section("Modules")
+    assert tuple((check.code, check.status) for check in module_checks) == (
+        ("module.operations_contract_v1", DiagnosticStatus.PASS),
+        ("module.readiness_provider_absent", DiagnosticStatus.SKIP),
+    )
+    assert report.exit_code == 1
+    assert "synthetic-package" in (providers[-1].detail or "")
+
+
+def test_core_provider_diagnostics_keep_undeclared_operations_out_of_readiness(
+) -> None:
+    results = (
+        _provider_result(kind="module_operations", name="unexpected"),
+    )
+    modules = _provider_modules(results)
+
+    report = collect_core_provider_diagnostics(
+        _manifest(),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
+        module_importer=lambda name: modules[name],
+    )
+
+    assert report.for_section("Providers")[-1].code == "provider.valid"
+    readiness = report.for_section("Modules")[-1]
+    assert readiness.code == "module.readiness_not_qualified"
+    assert readiness.status is DiagnosticStatus.SKIP
+    assert "does not invoke" in (readiness.detail or "")
+
+
+def test_core_provider_diagnostics_do_not_import_without_exact_core() -> None:
+    imported: list[str] = []
+
+    def importer(name: str) -> object:
+        imported.append(name)
+        raise AssertionError(name)
+
+    report = collect_core_provider_diagnostics(
+        _manifest(),
+        version_lookup=_lookup({"pds-core": "0.6.1"}),
+        module_importer=importer,
     )
 
     assert tuple((check.code, check.status) for check in report.checks) == (
-        ("providers.reduced_fidelity", DiagnosticStatus.SKIP),
-        ("module.readiness_unavailable", DiagnosticStatus.SKIP),
+        ("providers.core_unqualified", DiagnosticStatus.SKIP),
+        ("module.operations_core_unqualified", DiagnosticStatus.SKIP),
     )
-    assert report.exit_code == 0
-    assert "module-private state is not inspected" in (report.checks[1].detail or "")
+    assert imported == []
 
 
-def test_reduced_provider_diagnostics_do_not_claim_health_without_exact_core() -> None:
-    report = collect_reduced_provider_diagnostics(
+def test_core_provider_diagnostics_fail_closed_on_unknown_core_result() -> None:
+    results = (
+        _provider_result(
+            kind="routing_module",
+            name="optional",
+            code="provider.future_unknown",
+        ),
+    )
+    modules = _provider_modules(results)
+
+    report = collect_core_provider_diagnostics(
         _manifest(),
-        version_lookup=_lookup({"pds-core": "0.6.1"}),
+        version_lookup=_lookup({"pds-core": "0.6.2"}),
+        module_importer=lambda name: modules[name],
     )
 
-    assert all(check.status is DiagnosticStatus.SKIP for check in report.checks)
-    assert "exact suite-qualified Core" in (report.checks[0].detail or "")
+    invalid = report.for_section("Providers")[-1]
+    assert invalid.code == "provider.result_invalid"
+    assert invalid.status is DiagnosticStatus.FAIL
 
 
 def test_collect_doctor_diagnostics_combines_supported_surfaces(
@@ -1367,7 +1482,7 @@ def test_collect_doctor_diagnostics_combines_supported_surfaces(
     )
     monkeypatch.setattr(
         doctor,
-        "collect_reduced_provider_diagnostics",
+        "collect_core_provider_diagnostics",
         lambda active: report("providers", "Providers"),
     )
 

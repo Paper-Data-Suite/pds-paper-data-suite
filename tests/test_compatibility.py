@@ -68,9 +68,14 @@ def test_manifest_qualifies_exact_audited_published_releases() -> None:
     by_id = {item.component_id: item for item in manifest.components}
 
     assert tuple(by_id) == EXPECTED_COMPONENT_IDS
-    assert by_id["core"].release.sha256 == (
-        "be28c061b38463ef59ebc328ed1aa443"
-        "767fe7f2c626babb769c2d8e5932f308"
+    core = by_id["core"]
+    assert core.version == "0.6.2"
+    assert core.requires_python == ">=3.11"
+    assert core.release.tag == "v0.6.2"
+    assert core.release.wheel == "pds_core-0.6.2-py3-none-any.whl"
+    assert core.release.sha256 == (
+        "b9d5de7d467d18716f415da87f359e94"
+        "0603d9c738a3a9ae9309272ebe78a848"
     )
     assert by_id["scoreform"].release.sha256 == (
         "04c79c9b884040e3fc32b2551a4ad4fa"

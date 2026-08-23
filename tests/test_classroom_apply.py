@@ -120,6 +120,14 @@ class FakeCalendar:
     periods: tuple[object, ...]
 
 
+class FakeRosterConflictError(RuntimeError):
+    pass
+
+
+class FakeRosterCandidateChangedError(FakeRosterConflictError):
+    pass
+
+
 class FakeApplyCore:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -159,6 +167,65 @@ class FakeApplyCore:
             ),
         )
 
+    @staticmethod
+    def _roster_token(value: FakeRoster | None) -> str:
+        if value is None:
+            return "synthetic:absent"
+        return "synthetic:" + "|".join(
+            (
+                value.class_id,
+                ",".join(value.columns),
+                ";".join(
+                    f"{student.student_id}:{student.first_name}:{student.last_name}"
+                    for student in value.students
+                ),
+            )
+        )
+
+    def plan_guarded_roster(
+        self,
+        root: str | Path,
+        class_id: str,
+        candidate: object,
+    ) -> object:
+        assert Path(root) == self.root
+        incoming = (
+            self.roster_sources[Path(candidate)]
+            if isinstance(candidate, (str, Path))
+            else cast(FakeRoster, candidate)
+        )
+        current = self.rosters.get(class_id)
+        current_by_id = (
+            {} if current is None else {s.student_id: s for s in current.students}
+        )
+        incoming_by_id = {s.student_id: s for s in incoming.students}
+        additions = []
+        changes = []
+        removals = []
+        unchanged = []
+        for student_id in sorted(set(current_by_id) | set(incoming_by_id)):
+            old = current_by_id.get(student_id)
+            new = incoming_by_id.get(student_id)
+            if old is None:
+                additions.append(new)
+            elif new is None:
+                removals.append(old)
+            elif old == new:
+                unchanged.append(student_id)
+            else:
+                changes.append(SimpleNamespace(student_id=student_id))
+        return SimpleNamespace(
+            class_id=class_id,
+            candidate=incoming,
+            current_roster_present=current is not None,
+            current_state_token=self._roster_token(current),
+            candidate_state_token=self._roster_token(incoming),
+            additions=tuple(additions),
+            changes=tuple(changes),
+            removals=tuple(removals),
+            unchanged_student_ids=tuple(unchanged),
+        )
+
     def planning(self) -> CoreClassroomPlanningServices:
         return cast(
             CoreClassroomPlanningServices,
@@ -166,6 +233,7 @@ class FakeApplyCore:
                 readers=self.readers(),
                 create_class_metadata=self.create_metadata,
                 load_roster=lambda path: self.roster_sources[Path(path)],
+                plan_guarded_roster_import=self.plan_guarded_roster,
                 standards_library_path=(
                     lambda root: Path(root) / "standards" / "library.json"
                 ),
@@ -273,6 +341,44 @@ class FakeApplyCore:
         self.rosters[roster.class_id] = roster
         return self.root / "classes" / roster.class_id / "roster.csv"
 
+    def commit_roster(
+        self,
+        root: str | Path,
+        class_id: str,
+        candidate: object,
+        *,
+        expected_current_state_token: str,
+        expected_candidate_state_token: str,
+    ) -> object:
+        incoming = (
+            self.roster_sources[Path(candidate)]
+            if isinstance(candidate, (str, Path))
+            else cast(FakeRoster, candidate)
+        )
+        candidate_token = self._roster_token(incoming)
+        if candidate_token != expected_candidate_state_token:
+            raise FakeRosterCandidateChangedError("candidate changed")
+        current = self.rosters.get(class_id)
+        current_token = self._roster_token(current)
+        if current_token != expected_current_state_token:
+            raise FakeRosterConflictError("canonical changed")
+        action = "replace" if current is not None else "create"
+        self.events.append(f"roster:{action}:{class_id}")
+        committed = FakeRoster(
+            class_id,
+            incoming.students,
+            incoming.columns,
+            self.root / "classes" / class_id / "roster.csv",
+        )
+        self.rosters[class_id] = committed
+        return SimpleNamespace(
+            class_id=class_id,
+            roster_path=cast(Path, committed.source_path),
+            roster=committed,
+            previous_state_token=expected_current_state_token,
+            committed_state_token=candidate_token,
+        )
+
     def install_standards(
         self,
         root: str | Path,
@@ -316,6 +422,9 @@ class FakeApplyCore:
                 self.install_standards,
             ),
             write_academic_period_calendar=cast(object, self.write_calendar),
+            commit_roster_import=cast(object, self.commit_roster),
+            roster_import_conflict_error=FakeRosterConflictError,
+            roster_import_candidate_changed_error=FakeRosterCandidateChangedError,
         )
 
 
@@ -353,9 +462,19 @@ def test_apply_services_load_writers_from_actual_public_owner_modules(
         "load_core_classroom_planning_services",
         lambda *args, **kwargs: planning,
     )
+    class SyntheticRosterConflictError(RuntimeError):
+        pass
+
+    class SyntheticRosterCandidateChangedError(SyntheticRosterConflictError):
+        pass
+
     modules = {
         "pds_core.school_years": SimpleNamespace(open_school_year=lambda *a, **k: None),
-        "pds_core.classes": SimpleNamespace(write_class_roster=lambda *a, **k: None),
+        "pds_core.roster_imports": SimpleNamespace(
+            commit_roster_import=lambda *a, **k: None,
+            RosterImportConflictError=SyntheticRosterConflictError,
+            RosterImportCandidateChangedError=SyntheticRosterCandidateChangedError,
+        ),
         "pds_core.class_metadata": SimpleNamespace(
             write_class_metadata_for_class=lambda *a, **k: None
         ),
@@ -377,7 +496,7 @@ def test_apply_services_load_writers_from_actual_public_owner_modules(
     assert services.planning is planning
     assert events == [
         "pds_core.school_years",
-        "pds_core.classes",
+        "pds_core.roster_imports",
         "pds_core.class_metadata",
         "pds_core.starter_standards",
         "pds_core.academic_period_storage",
@@ -450,6 +569,8 @@ def test_apply_executes_core_writes_in_required_order_and_verifies(
         0,
         0,
         "create roster",
+        current_state_token=core._roster_token(None),
+        candidate_state_token=core._roster_token(incoming),
     )
     standards = StandardsPlan(
         "starter",
@@ -549,6 +670,8 @@ def test_roster_source_change_after_review_fails_before_first_write(
                 0,
                 0,
                 "create",
+                current_state_token=core._roster_token(None),
+                candidate_state_token=core._roster_token(reviewed_roster),
             ),
         ),
         None,
@@ -616,6 +739,8 @@ def test_late_roster_drift_reports_partial_success_without_replacement(
                 1,
                 0,
                 "replace",
+                current_state_token=core._roster_token(existing),
+                candidate_state_token=core._roster_token(incoming),
             ),
         ),
         None,
@@ -714,6 +839,9 @@ def test_apply_services_match_installed_qualified_core_public_contract() -> None
 
     assert callable(services.open_school_year)
     assert callable(services.write_class_metadata_for_class)
-    assert callable(services.write_class_roster)
+    assert services.write_class_roster is None
+    assert callable(services.commit_roster_import)
+    assert issubclass(services.roster_import_conflict_error, Exception)
+    assert issubclass(services.roster_import_candidate_changed_error, Exception)
     assert callable(services.install_starter_standards_library)
     assert callable(services.write_academic_period_calendar)

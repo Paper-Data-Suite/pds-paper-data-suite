@@ -45,9 +45,11 @@ These revisions establish the facts used here, but they do not freeze sibling
 repositories permanently. Later work MUST re-audit any public integration
 surface that materially changes.
 
-At the time of this audit:
+At the time of the original architecture audit:
 
-- Core 0.6.0 is the shared infrastructure baseline.
+- Core 0.6.0 was the shared infrastructure baseline for that historical snapshot.
+  The active exact release authority is the suite compatibility manifest; after
+  issue #38 qualification it is Core 0.6.2.
 - ScoreForm 0.10.0, Quillan 0.9.0, and Concord 0.2.0 are executable applications
   that expose Core routing profiles.
 - ScoreForm, Quillan, and Concord also expose publication-producer profiles.

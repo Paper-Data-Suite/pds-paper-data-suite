@@ -158,6 +158,27 @@ class RosterLoader(Protocol):
     def __call__(self, path: str | Path) -> ComparableRosterLike: ...
 
 
+class RosterImportPreviewLike(Protocol):
+    class_id: str
+    candidate: ComparableRosterLike
+    current_roster_present: bool
+    current_state_token: str
+    candidate_state_token: str
+    additions: Sequence[ComparableStudentLike]
+    changes: Sequence[object]
+    removals: Sequence[ComparableStudentLike]
+    unchanged_student_ids: Sequence[str]
+
+
+class RosterImportPlanner(Protocol):
+    def __call__(
+        self,
+        workspace_root: str | Path,
+        class_id: str,
+        candidate: object,
+    ) -> RosterImportPreviewLike: ...
+
+
 class StandardsLibraryPathGetter(Protocol):
     def __call__(self, workspace_root: str | Path) -> Path: ...
 
@@ -219,6 +240,7 @@ class CoreClassroomPlanningServices:
     academic_period_calendar_record_type: str
     academic_period_types: frozenset[str]
     academic_period_lifecycles: frozenset[str]
+    plan_guarded_roster_import: RosterImportPlanner | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +282,8 @@ class RosterPlan:
     conflicting_existing_count: int
     removed_existing_count: int
     reason: str
+    current_state_token: str = ""
+    candidate_state_token: str = ""
 
     @property
     def blocks_apply(self) -> bool:
@@ -386,6 +410,7 @@ def load_core_classroom_planning_services(
     school_years = _import_core_module("pds_core.school_years", module_importer)
     class_metadata = _import_core_module("pds_core.class_metadata", module_importer)
     rosters = _import_core_module("pds_core.rosters", module_importer)
+    roster_imports = _import_core_module("pds_core.roster_imports", module_importer)
     standards = _import_core_module("pds_core.standards", module_importer)
     starter_standards = _import_core_module(
         "pds_core.starter_standards",
@@ -490,6 +515,14 @@ def load_core_classroom_planning_services(
             academic_periods,
             "pds_core.academic_periods",
             "ACADEMIC_PERIOD_LIFECYCLES",
+        ),
+        plan_guarded_roster_import=cast(
+            RosterImportPlanner,
+            _required_callable(
+                roster_imports,
+                "pds_core.roster_imports",
+                "plan_roster_import",
+            ),
         ),
     )
 
@@ -682,25 +715,6 @@ def _roster_diagnostics(error: Exception) -> tuple[str, ...]:
     return tuple(diagnostics)
 
 
-def _student_material(student: ComparableStudentLike) -> tuple[object, ...]:
-    return (
-        student.class_id,
-        student.student_id,
-        student.last_name,
-        student.first_name,
-        student.period,
-        tuple(sorted(student.extra_fields.items())),
-    )
-
-
-def _roster_material(roster: ComparableRosterLike) -> tuple[object, ...]:
-    return (
-        roster.class_id,
-        tuple(roster.columns),
-        tuple(_student_material(student) for student in roster.students),
-    )
-
-
 def plan_roster_import(
     assessment: SharedSetupAssessment,
     class_id: str,
@@ -708,112 +722,116 @@ def plan_roster_import(
     *,
     services: CoreClassroomPlanningServices,
 ) -> RosterPlan:
-    """Load a roster through Core and classify a whole-roster setup action."""
-    try:
-        validated_class_id = services.validate_identifier(class_id, "class_id")
-    except Exception as error:
-        raise _planning_failure("roster target class", error) from error
+    """Delegate complete roster validation and diff semantics to guarded Core."""
+    planner = services.plan_guarded_roster_import
+    if planner is None:
+        raise CoreClassroomPlanningServiceError(
+            "Suite-qualified Core does not expose guarded roster import planning."
+        )
 
     source = Path(source_path)
     try:
-        incoming = services.load_roster(source)
+        preview = planner(
+            assessment.workspace_root,
+            class_id,
+            source,
+        )
     except Exception as error:
         diagnostics = _roster_diagnostics(error)
-        if diagnostics:
+        expected_class_id = getattr(error, "expected_class_id", None)
+        actual_class_id = getattr(error, "actual_class_id", None)
+        if (
+            isinstance(expected_class_id, str)
+            and expected_class_id
+            and isinstance(actual_class_id, str)
+            and actual_class_id
+        ):
+            message = (
+                f"Roster source belongs to class {actual_class_id}, not explicitly "
+                f"selected class {expected_class_id}."
+            )
+        elif diagnostics:
             message = f"Core rejected roster source {source}."
         else:
             detail = str(error)[:300] or error.__class__.__name__
-            message = f"Core could not load roster source {source}: {detail}"
+            message = f"Core could not preview roster source {source}: {detail}"
         raise RosterSourcePlanningError(
             message,
             diagnostics=diagnostics,
         ) from error
 
-    existing_assessment = _assessment_class(assessment, validated_class_id)
-    existing = (
+    try:
+        preview_class_id = preview.class_id
+        incoming = preview.candidate
+        current_present = preview.current_roster_present
+        current_state_token = preview.current_state_token
+        candidate_state_token = preview.candidate_state_token
+        addition_count = len(preview.additions)
+        change_count = len(preview.changes)
+        removal_count = len(preview.removals)
+        unchanged_count = len(preview.unchanged_student_ids)
+    except (AttributeError, TypeError) as error:
+        raise ClassroomSetupPlanningError(
+            "Core returned an invalid guarded roster preview."
+        ) from error
+
+    if preview_class_id != incoming.class_id:
+        raise ClassroomSetupPlanningError(
+            "Core guarded roster preview class identity is internally inconsistent."
+        )
+    if not isinstance(current_present, bool):
+        raise ClassroomSetupPlanningError(
+            "Core guarded roster preview has an invalid current-roster flag."
+        )
+    if not isinstance(current_state_token, str) or not current_state_token:
+        raise ClassroomSetupPlanningError(
+            "Core guarded roster preview is missing its canonical-state token."
+        )
+    if not isinstance(candidate_state_token, str) or not candidate_state_token:
+        raise ClassroomSetupPlanningError(
+            "Core guarded roster preview is missing its candidate-state token."
+        )
+
+    incoming_count = addition_count + change_count + unchanged_count
+    if incoming_count != len(incoming.students):
+        raise ClassroomSetupPlanningError(
+            "Core guarded roster preview counts do not match its validated candidate."
+        )
+    existing_count = (
         None
-        if existing_assessment is None
-        else cast(ComparableRosterLike | None, existing_assessment.roster)
+        if not current_present
+        else change_count + removal_count + unchanged_count
     )
 
-    incoming_count = len(incoming.students)
-    existing_count = None if existing is None else len(existing.students)
-
-    if incoming.class_id != validated_class_id:
-        return RosterPlan(
-            class_id=validated_class_id,
-            source_path=source,
-            incoming_roster=incoming,
-            existing_roster=existing,
-            action=RosterAction.REFUSE,
-            incoming_student_count=incoming_count,
-            existing_student_count=existing_count,
-            new_count=0,
-            unchanged_count=0,
-            conflicting_existing_count=0,
-            removed_existing_count=0,
-            reason=(
-                f"Roster source belongs to class {incoming.class_id}, not explicitly "
-                f"selected class {validated_class_id}."
-            ),
-        )
-
-    if existing is None:
-        return RosterPlan(
-            class_id=validated_class_id,
-            source_path=source,
-            incoming_roster=incoming,
-            existing_roster=None,
-            action=RosterAction.CREATE,
-            incoming_student_count=incoming_count,
-            existing_student_count=None,
-            new_count=incoming_count,
-            unchanged_count=0,
-            conflicting_existing_count=0,
-            removed_existing_count=0,
-            reason=f"Class {validated_class_id} has no existing Core roster.",
-        )
-
-    existing_by_id = {student.student_id: student for student in existing.students}
-    incoming_ids = {student.student_id for student in incoming.students}
-    new_count = 0
-    unchanged_count = 0
-    conflicting_count = 0
-    for student in incoming.students:
-        current = existing_by_id.get(student.student_id)
-        if current is None:
-            new_count += 1
-        elif _student_material(current) == _student_material(student):
-            unchanged_count += 1
-        else:
-            conflicting_count += 1
-    removed_count = sum(
-        1 for student in existing.students if student.student_id not in incoming_ids
-    )
-
-    if _roster_material(existing) == _roster_material(incoming):
+    if not current_present:
+        action = RosterAction.CREATE
+        reason = f"Core reports no canonical roster for class {preview_class_id}."
+    elif addition_count == 0 and change_count == 0 and removal_count == 0:
         action = RosterAction.KEEP
-        reason = f"Imported roster for {validated_class_id} is materially identical."
+        reason = (
+            f"Core reports the candidate roster for {preview_class_id} is unchanged."
+        )
     else:
         action = RosterAction.REPLACE
         reason = (
-            f"Imported roster for {validated_class_id} differs from the existing "
-            "Core roster and therefore requires whole-roster replacement."
+            f"Core reports a guarded full-roster replacement for {preview_class_id}."
         )
 
     return RosterPlan(
-        class_id=validated_class_id,
+        class_id=preview_class_id,
         source_path=source,
         incoming_roster=incoming,
-        existing_roster=existing,
+        existing_roster=None,
         action=action,
         incoming_student_count=incoming_count,
-        existing_student_count=len(existing.students),
-        new_count=new_count,
+        existing_student_count=existing_count,
+        new_count=addition_count,
         unchanged_count=unchanged_count,
-        conflicting_existing_count=conflicting_count,
-        removed_existing_count=removed_count,
+        conflicting_existing_count=change_count,
+        removed_existing_count=removal_count,
         reason=reason,
+        current_state_token=current_state_token,
+        candidate_state_token=candidate_state_token,
     )
 
 

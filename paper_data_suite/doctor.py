@@ -1674,60 +1674,421 @@ _SECTION_ORDER: tuple[str, ...] = (
 )
 
 
-def collect_reduced_provider_diagnostics(
+class ProviderEntryPointMetadataLike(Protocol):
+    """Safe Core provider-entry-point metadata consumed by doctor."""
+
+    provider_kind: str
+    entry_point_group: str
+    entry_point_name: str
+    entry_point_target: str
+    distribution_name: str | None
+
+
+class ProviderDiagnosticResultLike(Protocol):
+    """Failure-isolated Core provider diagnostic fields consumed by doctor."""
+
+    metadata: ProviderEntryPointMetadataLike
+    stage: str
+    code: str
+    message: str
+
+
+class ProviderDiagnosticsLookup(Protocol):
+    """Public Core provider diagnostic callable shape."""
+
+    def __call__(self) -> Sequence[ProviderDiagnosticResultLike]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class _CoreProviderServices:
+    diagnose_core_providers: ProviderDiagnosticsLookup
+    module_operations_contract_version: str
+    module_operations_entry_point_group: str
+    invoke_module_readiness: Callable[..., object]
+    invoke_module_attention: Callable[..., object]
+
+
+class _CoreProviderServiceError(RuntimeError):
+    """Raised when Core v0.6.2 provider contracts cannot be loaded safely."""
+
+
+def _load_core_provider_services(
+    module_importer: ModuleImporter,
+) -> _CoreProviderServices:
+    try:
+        diagnostics = module_importer("pds_core.provider_diagnostics")
+        operations = module_importer("pds_core.module_operations")
+    except Exception as error:
+        raise _CoreProviderServiceError(
+            f"could not import Core provider contracts: {error}"
+        ) from error
+
+    diagnose = getattr(diagnostics, "diagnose_core_providers", None)
+    if not callable(diagnose):
+        raise _CoreProviderServiceError(
+            "public Core callable is unavailable: "
+            "pds_core.provider_diagnostics.diagnose_core_providers"
+        )
+
+    contract_version = getattr(operations, "MODULE_OPERATIONS_CONTRACT_VERSION", None)
+    entry_point_group = getattr(operations, "MODULE_OPERATIONS_ENTRY_POINT_GROUP", None)
+    readiness = getattr(operations, "invoke_module_readiness", None)
+    attention = getattr(operations, "invoke_module_attention", None)
+    if contract_version != "1":
+        raise _CoreProviderServiceError(
+            "Core module-operations contract version is not the suite-qualified v1."
+        )
+    if entry_point_group != "paper_data_suite.module_operations":
+        raise _CoreProviderServiceError(
+            "Core module-operations entry-point group is not the qualified group."
+        )
+    if not callable(readiness) or not callable(attention):
+        raise _CoreProviderServiceError(
+            "Core module-operations invocation contracts are unavailable."
+        )
+
+    return _CoreProviderServices(
+        diagnose_core_providers=cast(ProviderDiagnosticsLookup, diagnose),
+        module_operations_contract_version=contract_version,
+        module_operations_entry_point_group=entry_point_group,
+        invoke_module_readiness=cast(Callable[..., object], readiness),
+        invoke_module_attention=cast(Callable[..., object], attention),
+    )
+
+
+_PROVIDER_KIND_LABELS = {
+    "routing_module": "routing",
+    "publication_producer": "publication",
+    "module_operations": "module-operations",
+}
+_PROVIDER_FAILURE_CODES = frozenset(
+    {
+        "provider.entry_point_name_invalid",
+        "provider.load_failed",
+        "provider.not_callable",
+        "provider.call_failed",
+        "provider.profile_invalid",
+        "provider.identity_mismatch",
+        "provider.core_incompatible",
+        "provider.identity_conflict",
+    }
+)
+
+
+def _provider_diagnostic_check(
+    result: ProviderDiagnosticResultLike,
+) -> DiagnosticCheck:
+    try:
+        provider_kind = result.metadata.provider_kind
+        group = result.metadata.entry_point_group
+        name = result.metadata.entry_point_name
+        owner = result.metadata.distribution_name
+        stage = result.stage
+        code = result.code
+        message = result.message
+    except (AttributeError, TypeError, ValueError) as error:
+        return DiagnosticCheck(
+            section="Providers",
+            code="provider.result_invalid",
+            status=DiagnosticStatus.FAIL,
+            summary="Core returned an invalid provider diagnostic result.",
+            detail=str(error)[:500] or "Provider diagnostic shape is invalid.",
+            remediation=(
+                "Repair the suite-qualified Core installation, then rerun "
+                "`pds doctor`."
+            ),
+        )
+
+    if (
+        provider_kind not in _PROVIDER_KIND_LABELS
+        or not isinstance(group, str)
+        or not group
+        or not isinstance(name, str)
+        or not name
+        or owner is not None
+        and (not isinstance(owner, str) or not owner)
+        or not isinstance(stage, str)
+        or not stage
+        or not isinstance(code, str)
+        or not code
+        or not isinstance(message, str)
+        or not message
+    ):
+        return DiagnosticCheck(
+            section="Providers",
+            code="provider.result_invalid",
+            status=DiagnosticStatus.FAIL,
+            summary="Core returned an invalid provider diagnostic result.",
+            remediation=(
+                "Repair the suite-qualified Core installation, then rerun "
+                "`pds doctor`."
+            ),
+        )
+
+    provider_label = _PROVIDER_KIND_LABELS[provider_kind]
+    identity = f"{group}:{name}"
+    owner_text = owner or "unknown distribution"
+    bounded_message = message[:500]
+    detail = (
+        f"{bounded_message} Entry point: {identity}; owner: {owner_text}; "
+        f"stage: {stage}."
+    )
+
+    if code == "provider.valid":
+        return DiagnosticCheck(
+            section="Providers",
+            code=code,
+            status=DiagnosticStatus.PASS,
+            summary=(
+                f"{provider_label.title()} provider {name} satisfies the active "
+                "Core contract."
+            ),
+            detail=detail,
+        )
+
+    if code in _PROVIDER_FAILURE_CODES:
+        return DiagnosticCheck(
+            section="Providers",
+            code=code,
+            status=DiagnosticStatus.FAIL,
+            summary=(
+                f"{provider_label.title()} provider {name} failed Core validation."
+            ),
+            detail=detail,
+            remediation=(
+                "Reinstall or remove the affected provider package through the "
+                "managed suite environment workflow, then rerun `pds doctor`."
+            ),
+        )
+
+    return DiagnosticCheck(
+        section="Providers",
+        code="provider.result_invalid",
+        status=DiagnosticStatus.FAIL,
+        summary="Core returned an unknown provider diagnostic code.",
+        detail=f"Observed code: {code}; entry point: {identity}.",
+        remediation=(
+            "Repair the suite-qualified Core installation, then rerun `pds doctor`."
+        ),
+    )
+
+
+def _manifest_declares_entry_point_group(
+    manifest: ReleaseCompatibilityManifest,
+    group: str,
+) -> bool:
+    return any(
+        expectation.group == group
+        for component in manifest.components
+        for expectation in component.entry_points
+    )
+
+
+def collect_core_provider_diagnostics(
     manifest: ReleaseCompatibilityManifest | None = None,
     *,
     version_lookup: DistributionVersionLookup = metadata.version,
+    module_importer: ModuleImporter = import_module,
+    services: _CoreProviderServices | None = None,
 ) -> DoctorReport:
-    """Report reduced provider diagnostic fidelity for the current Core contract.
-
-    Failure-isolated routing/publication provider diagnostics and shared module
-    readiness are Core-owned additive contracts. Until the suite-qualified Core
-    release exposes those contracts, doctor reports the limitation explicitly
-    rather than reimplementing strict Core discovery or inspecting module internals.
-    """
+    """Use Core v0.6.2 failure-isolated provider diagnostics without owning them."""
     active_manifest = manifest or load_release_compatibility_manifest()
     core = _core_component(active_manifest)
     if core is None:
-        detail = (
-            "The suite manifest does not identify exactly one shared Core "
-            "component."
-        )
-    elif not _qualified_component(core, version_lookup=version_lookup):
-        detail = (
-            "The exact suite-qualified Core package is not installed, so deeper "
-            "provider contract diagnostics are unavailable."
-        )
-    else:
-        detail = (
-            "The suite-qualified Core contract does not yet expose the optional "
-            "failure-isolated provider diagnostic surface."
+        return DoctorReport(
+            (
+                DiagnosticCheck(
+                    section="Providers",
+                    code="providers.core_manifest_invalid",
+                    status=DiagnosticStatus.FAIL,
+                    summary=(
+                        "Provider diagnostics cannot identify exactly one shared "
+                        "Core component in the suite manifest."
+                    ),
+                ),
+                DiagnosticCheck(
+                    section="Modules",
+                    code="module.operations_contract_unavailable",
+                    status=DiagnosticStatus.SKIP,
+                    summary="Module-operations contract qualification was skipped.",
+                ),
+            )
         )
 
-    return DoctorReport(
-        (
+    if not _qualified_component(core, version_lookup=version_lookup):
+        return DoctorReport(
+            (
+                DiagnosticCheck(
+                    section="Providers",
+                    code="providers.core_unqualified",
+                    status=DiagnosticStatus.SKIP,
+                    component_id=core.component_id,
+                    summary=(
+                        "Core provider diagnostics require the exact suite-qualified "
+                        "Core package."
+                    ),
+                ),
+                DiagnosticCheck(
+                    section="Modules",
+                    code="module.operations_core_unqualified",
+                    status=DiagnosticStatus.SKIP,
+                    component_id=core.component_id,
+                    summary=(
+                        "Module-operations contract qualification requires the exact "
+                        "suite-qualified Core package."
+                    ),
+                ),
+            )
+        )
+
+    try:
+        active_services = services or _load_core_provider_services(module_importer)
+    except _CoreProviderServiceError as error:
+        return DoctorReport(
+            (
+                DiagnosticCheck(
+                    section="Providers",
+                    code="providers.core_service_unavailable",
+                    status=DiagnosticStatus.FAIL,
+                    component_id=core.component_id,
+                    summary="Core provider diagnostic services are unavailable.",
+                    detail=str(error)[:500],
+                    remediation=(
+                        f"Reinstall {core.distribution} {core.version} through the "
+                        "verified suite workflow, then rerun `pds doctor`."
+                    ),
+                ),
+                DiagnosticCheck(
+                    section="Modules",
+                    code="module.operations_contract_unavailable",
+                    status=DiagnosticStatus.SKIP,
+                    component_id=core.component_id,
+                    summary="Module-operations contract qualification was skipped.",
+                    detail=(
+                        "The required Core module-operations v1 surface could not be "
+                        "loaded safely."
+                    ),
+                ),
+            )
+        )
+
+    checks: list[DiagnosticCheck] = [
+        DiagnosticCheck(
+            section="Providers",
+            code="providers.diagnostics_contract_available",
+            status=DiagnosticStatus.PASS,
+            component_id=core.component_id,
+            summary="Core failure-isolated provider diagnostics are available.",
+            detail=(
+                "Core owns routing, publication, and module-operations provider "
+                "profile validation."
+            ),
+        ),
+        DiagnosticCheck(
+            section="Modules",
+            code="module.operations_contract_v1",
+            status=DiagnosticStatus.PASS,
+            component_id=core.component_id,
+            summary="Core module-operations contract v1 is available.",
+            detail=(
+                "Entry-point group: "
+                f"{active_services.module_operations_entry_point_group}."
+            ),
+        ),
+    ]
+
+    try:
+        results = tuple(active_services.diagnose_core_providers())
+    except Exception as error:
+        checks.append(
             DiagnosticCheck(
                 section="Providers",
-                code="providers.reduced_fidelity",
-                status=DiagnosticStatus.SKIP,
-                summary=(
-                    "Routing/publication provider compatibility has reduced "
-                    "diagnostic fidelity."
+                code="providers.diagnosis_failed",
+                status=DiagnosticStatus.FAIL,
+                component_id=core.component_id,
+                summary="Core could not enumerate provider diagnostics.",
+                detail=(
+                    str(error)[:500]
+                    or "Provider diagnosis failed without a message."
                 ),
-                detail=detail,
-            ),
+                remediation=(
+                    "Repair the installed Python environment or affected provider "
+                    "metadata, then rerun `pds doctor`."
+                ),
+            )
+        )
+        checks.append(
             DiagnosticCheck(
                 section="Modules",
                 code="module.readiness_unavailable",
                 status=DiagnosticStatus.SKIP,
-                summary="Shared module-reported readiness is not available.",
+                summary="Shared module readiness was not evaluated.",
                 detail=(
-                    "No suite-qualified public module-operations readiness contract "
-                    "is available to doctor; module-private state is not inspected."
+                    "Provider diagnosis did not complete; module-private state was "
+                    "not inspected."
                 ),
-            ),
+            )
         )
+        return DoctorReport(tuple(checks))
+
+    checks.extend(_provider_diagnostic_check(result) for result in results)
+
+    module_operations_results = tuple(
+        result
+        for result in results
+        if getattr(getattr(result, "metadata", None), "provider_kind", None)
+        == "module_operations"
     )
+    if _manifest_declares_entry_point_group(
+        active_manifest,
+        active_services.module_operations_entry_point_group,
+    ):
+        checks.append(
+            DiagnosticCheck(
+                section="Modules",
+                code="module.readiness_deferred",
+                status=DiagnosticStatus.SKIP,
+                summary=(
+                    "A module-operations provider is suite-declared, but readiness "
+                    "evaluation is outside this v0.1.0 qualification step."
+                ),
+                detail=(
+                    "Provider contract validation is reported above; readiness and "
+                    "attention remain distinct module-owned capabilities."
+                ),
+            )
+        )
+    elif module_operations_results:
+        checks.append(
+            DiagnosticCheck(
+                section="Modules",
+                code="module.readiness_not_qualified",
+                status=DiagnosticStatus.SKIP,
+                summary="Shared module readiness is not suite-qualified.",
+                detail=(
+                    "Core discovered module-operations provider metadata, but the "
+                    "active exact suite manifest declares no module-operations "
+                    "provider. Doctor does not invoke undeclared readiness."
+                ),
+            )
+        )
+    else:
+        checks.append(
+            DiagnosticCheck(
+                section="Modules",
+                code="module.readiness_provider_absent",
+                status=DiagnosticStatus.SKIP,
+                summary="No suite-qualified module readiness provider is available.",
+                detail=(
+                    "The exact v0.1.0 application composition declares no "
+                    "paper_data_suite.module_operations entry point. Installation, "
+                    "routing, publication, and launchability are not inferred as "
+                    "readiness."
+                ),
+            )
+        )
+
+    return DoctorReport(tuple(checks))
 
 
 def collect_doctor_diagnostics(
@@ -1741,7 +2102,7 @@ def collect_doctor_diagnostics(
         collect_environment_dependency_diagnostics(manifest),
         collect_entry_point_core_diagnostics(manifest),
         collect_workspace_registry_diagnostics(manifest, workspace=workspace),
-        collect_reduced_provider_diagnostics(manifest),
+        collect_core_provider_diagnostics(manifest),
     )
 
 

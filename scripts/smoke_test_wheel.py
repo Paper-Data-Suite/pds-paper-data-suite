@@ -225,11 +225,18 @@ tracked = [
     "meridian",
     "vitrine",
 ]
+core = next(
+    component for component in manifest.components if component.component_id == "core"
+)
 print(json.dumps({
     "suite_version": manifest.suite.version,
     "component_ids": [
         component.component_id for component in manifest.components
     ],
+    "core_version": core.version,
+    "core_release_tag": core.release.tag,
+    "core_wheel": core.release.wheel,
+    "core_sha256": core.release.sha256,
     "loaded": {name: name in sys.modules for name in tracked},
 }))
 """.strip()
@@ -249,6 +256,24 @@ print(json.dumps({
     ]:
         raise SmokeTestError(
             "Installed compatibility manifest component set changed."
+        )
+    expected_core = {
+        "core_version": "0.6.2",
+        "core_release_tag": "v0.6.2",
+        "core_wheel": "pds_core-0.6.2-py3-none-any.whl",
+        "core_sha256": (
+            "b9d5de7d467d18716f415da87f359e94"
+            "0603d9c738a3a9ae9309272ebe78a848"
+        ),
+    }
+    observed_core = {
+        key: payload.get(key)
+        for key in expected_core
+    }
+    if observed_core != expected_core:
+        raise SmokeTestError(
+            "Installed compatibility manifest does not contain the exact "
+            f"qualified Core v0.6.2 release identity: {observed_core!r}"
         )
 
     loaded = cast(dict[str, bool], payload.get("loaded"))
@@ -362,8 +387,9 @@ def _assert_doctor_output(output: str) -> None:
         "Modules",
         "Overall",
         "No accessible workspace currently exists at the resolved path.",
-        "Routing/publication provider compatibility has reduced diagnostic fidelity.",
-        "Shared module-reported readiness is not available.",
+        "Core failure-isolated provider diagnostics are available.",
+        "Core module-operations contract v1 is available.",
+        "No suite-qualified module readiness provider is available.",
     )
     missing = [fragment for fragment in required if fragment not in output]
     if missing:

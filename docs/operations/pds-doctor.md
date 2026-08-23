@@ -154,20 +154,45 @@ coordination state, and bounded warning/error finding codes/counts.
 The suite does not rebuild the catalog, remove locks, repair records, or read raw
 student evidence merely to prove environment health.
 
-## Reduced provider fidelity in the current qualified Core contract
+## Core provider diagnostics and module operations
 
-The current suite-qualified Core contract does not expose a failure-isolated
-health inventory for routing/publication provider execution, nor a shared
-module-operations readiness contract.
+Core v0.6.2 exposes a separate failure-isolated diagnostic surface for the
+Core-defined provider kinds:
 
-`doctor` therefore reports those capabilities as `SKIP` with reduced diagnostic
-fidelity. It does **not** call Core's strict runtime discovery and does not import
-module-private internals to simulate the missing contracts.
+```text
+routing_module
+publication_producer
+module_operations
+```
 
-When a future suite composition qualifies Core contracts that expose these neutral
-surfaces, the suite can consume them without changing ownership: Core validates
-Core-defined provider contracts, modules own readiness facts, and the suite owns
-aggregation and teacher-facing `PASS`/`WARN`/`FAIL`/`SKIP` presentation.
+`doctor` delegates provider loading, profile validation, provider identity,
+active-Core compatibility, and provider-identity conflict detection to
+`pds_core.provider_diagnostics.diagnose_core_providers()`. The suite translates
+Core's bounded result codes into teacher-facing `PASS`/`FAIL` presentation; it does
+not reproduce Core profile validators or weaken Core's strict runtime registries.
+
+Metadata comparison and provider execution remain separate. The suite still owns
+the exact manifest/package/entry-point metadata checks described above. Core owns
+the question of whether an installed provider candidate satisfies the Core-defined
+runtime contract.
+
+Core v0.6.2 also defines module-operations contract v1 at:
+
+```text
+paper_data_suite.module_operations
+```
+
+with distinct optional `readiness` and `attention` capabilities. The exact
+v0.1.0 suite-qualified application releases do not declare that provider group.
+`doctor` therefore qualifies the Core contract itself but reports shared
+module-reported readiness as `SKIP`. It does not infer readiness from package
+installation, a valid routing or publication provider, application launchability,
+or other suite health.
+
+If undeclared module-operations provider metadata happens to exist in the Python
+environment, Core may diagnose that candidate, but the suite does not invoke it as
+release-qualified readiness. Attention aggregation and next-action behavior remain
+outside v0.1.0.
 
 ## Privacy and bounded output
 

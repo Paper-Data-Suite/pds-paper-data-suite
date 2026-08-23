@@ -209,10 +209,10 @@ def render_setup_plan(
                     if roster.existing_student_count is None
                     else str(roster.existing_student_count)
                 ),
-                f"    New: {roster.new_count}",
+                f"    Additions: {roster.new_count}",
+                f"    Changes: {roster.conflicting_existing_count}",
+                f"    Removals: {roster.removed_existing_count}",
                 f"    Unchanged: {roster.unchanged_count}",
-                f"    Conflicting existing: {roster.conflicting_existing_count}",
-                f"    Existing absent from import: {roster.removed_existing_count}",
                 f"    {roster.reason}",
             )
         )

@@ -204,6 +204,59 @@ def _assert_clean_directory(path: Path) -> None:
         )
 
 
+def _assert_guarded_roster_service_boundary(
+    python: Path,
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+) -> None:
+    code = """
+from paper_data_suite.classroom_apply import load_core_classroom_apply_services
+from paper_data_suite.classroom_planning import load_core_classroom_planning_services
+
+planning = load_core_classroom_planning_services()
+apply = load_core_classroom_apply_services()
+
+assert callable(planning.plan_guarded_roster_import)
+assert callable(apply.commit_roster_import)
+assert apply.write_class_roster is None
+print("guarded-roster-services-ok")
+""".strip()
+    result = _run([str(python), "-c", code], cwd=cwd, env=env)
+    if result.stdout.strip() != "guarded-roster-services-ok":
+        raise ClassroomSetupSmokeTestError(
+            "Installed suite did not expose the guarded Core roster service boundary."
+        )
+
+
+def _assert_guarded_roster_committed(
+    python: Path,
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    source: Path,
+) -> None:
+    code = f"""
+from pds_core.roster_imports import plan_roster_import
+from pds_core.workspace import inspect_workspace_root
+
+root = inspect_workspace_root().root
+preview = plan_roster_import(root, "eng10", {str(source)!r})
+assert preview.current_roster_present is True
+assert preview.addition_count == 0
+assert preview.change_count == 0
+assert preview.removal_count == 0
+assert preview.unchanged_count == 1
+assert preview.current_state_token == preview.candidate_state_token
+print("guarded-roster-commit-ok")
+""".strip()
+    result = _run([str(python), "-c", code], cwd=cwd, env=env)
+    if result.stdout.strip() != "guarded-roster-commit-ok":
+        raise ClassroomSetupSmokeTestError(
+            "Installed guarded roster commit did not match the reviewed candidate."
+        )
+
+
 def smoke_test_classroom_setup_wheel(
     suite_wheel: Path,
     core_wheel: Path,
@@ -223,8 +276,15 @@ def smoke_test_classroom_setup_wheel(
         user_home = temp_root / "user"
         cancel_workspace = temp_root / "cancel-workspace"
         apply_workspace = temp_root / "apply-workspace"
+        roster_source = temp_root / "synthetic-roster.csv"
         run_directory.mkdir()
         user_home.mkdir()
+        roster_source.write_text(
+            "class_id,student_id,last_name,first_name,period\n"
+            "eng10,student001,Student,Alex,2\n",
+            encoding="utf-8",
+            newline="",
+        )
 
         venv.EnvBuilder(with_pip=True).create(environment)
         python = _venv_python(environment)
@@ -248,6 +308,11 @@ def smoke_test_classroom_setup_wheel(
         _assert_installed_suite_location(
             python,
             environment=environment,
+            cwd=run_directory,
+            env=command_env,
+        )
+        _assert_guarded_roster_service_boundary(
+            python,
             cwd=run_directory,
             env=command_env,
         )
@@ -311,7 +376,15 @@ def smoke_test_classroom_setup_wheel(
             cwd=run_directory,
             env=command_env,
         )
-        apply_input = "2026-2027\n\n\n2\nAPPLY\n"
+        apply_input = (
+            "2026-2027\n"
+            "eng10\n"
+            f"{roster_source}\n"
+            "\n"
+            "\n"
+            "2\n"
+            "APPLY\n"
+        )
         applied = _run(
             [str(launcher), "setup"],
             cwd=run_directory,
@@ -321,9 +394,13 @@ def smoke_test_classroom_setup_wheel(
         required = (
             "Shared setup review",
             "2026-2027: OPEN",
+            "eng10: CREATE",
+            "Additions: 1",
             "Plan is eligible for final APPLY.",
             "Shared classroom setup complete",
             "school_year:OPEN:2026-2027",
+            "class:CREATE:eng10",
+            "roster:CREATE:eng10",
         )
         missing = [fragment for fragment in required if fragment not in applied.stdout]
         if missing:
@@ -331,14 +408,27 @@ def smoke_test_classroom_setup_wheel(
                 "Installed setup APPLY output is missing expected content: "
                 + ", ".join(missing)
             )
+        state = _classroom_state(python, cwd=run_directory, env=command_env)
+        if state.get("class_count") != 1:
+            raise ClassroomSetupSmokeTestError(
+                f"Expected one committed class; observed {state.get('class_count')!r}."
+            )
+        state_without_class_count = dict(state)
+        state_without_class_count["class_count"] = 0
         _assert_state(
-            _classroom_state(python, cwd=run_directory, env=command_env),
+            state_without_class_count,
             root=apply_workspace,
             active_school_year="2026-2027",
         )
+        _assert_guarded_roster_committed(
+            python,
+            cwd=run_directory,
+            env=command_env,
+            source=roster_source,
+        )
         _assert_no_setup_plan_artifacts(apply_workspace)
 
-        rerun_input = "\n\n2\nAPPLY\n"
+        rerun_input = f"eng10\n{roster_source}\n\n\n2\nAPPLY\n"
         rerun = _run(
             [str(launcher), "setup"],
             cwd=run_directory,
@@ -349,10 +439,27 @@ def smoke_test_classroom_setup_wheel(
             raise ClassroomSetupSmokeTestError(
                 "Installed idempotent rerun did not report a no-op."
             )
+        rerun_state = _classroom_state(
+            python,
+            cwd=run_directory,
+            env=command_env,
+        )
+        if rerun_state.get("class_count") != 1:
+            raise ClassroomSetupSmokeTestError(
+                "Installed idempotent rerun changed the committed class count."
+            )
+        rerun_state_without_class_count = dict(rerun_state)
+        rerun_state_without_class_count["class_count"] = 0
         _assert_state(
-            _classroom_state(python, cwd=run_directory, env=command_env),
+            rerun_state_without_class_count,
             root=apply_workspace,
             active_school_year="2026-2027",
+        )
+        _assert_guarded_roster_committed(
+            python,
+            cwd=run_directory,
+            env=command_env,
+            source=roster_source,
         )
         _assert_no_setup_plan_artifacts(apply_workspace)
         _assert_clean_directory(run_directory)

@@ -30,7 +30,8 @@ authoritative for:
 - school-year validation and state;
 - class and student identifiers;
 - class metadata models and persistence;
-- roster parsing, validation, and persistence;
+- roster parsing, validation, diff semantics, opaque state tokens, guarded
+  commit, write serialization, and persistence;
 - standards models, starter-pack contents, merge semantics, and persistence;
 - Academic Period models, hierarchy validation, revisions, and persistence.
 
@@ -39,7 +40,7 @@ second setup schema or persisted setup-plan file.
 
 The active release-compatibility manifest must qualify the installed Core
 release exactly before Core setup services are used. The current development
-manifest qualifies `pds-core==0.6.0`.
+manifest qualifies `pds-core==0.6.2`.
 
 ## Workspace precondition
 
@@ -164,18 +165,31 @@ Structured Core roster diagnostics are rendered using row/column location and a
 bounded value-free explanation. The suite does not echo `RosterIssue.value` or
 student data from validation failures.
 
-For an existing class roster, `student_id` is the class-scoped identity key. The
-preview reports counts for:
+For an existing class roster, `student_id` is the class-scoped identity key.
+The suite delegates comparison semantics to Core's guarded
+`plan_roster_import(...)` service and presents Core's bounded counts as:
 
-- `NEW` students;
-- `UNCHANGED` students;
-- `CONFLICTING_EXISTING` students;
-- existing students absent from the incoming whole roster.
+- additions;
+- changes;
+- removals;
+- unchanged student IDs.
 
-An absent roster produces `CREATE`. A materially identical import produces
-`KEEP`. Any different valid import is a whole-roster `REPLACE`; the suite does
-not implement row-level merge semantics. Replacement remains protected by Core's
-overwrite behavior and occurs only after the reviewed final `APPLY`.
+The suite does not independently compare roster rows or define another diff
+vocabulary. An absent canonical roster produces suite action `CREATE`; a Core
+preview with no additions, changes, or removals produces `KEEP`; any other valid
+whole-roster change produces `REPLACE`.
+
+Each reviewed Core preview also supplies two distinct opaque tokens:
+
+```text
+current_state_token
+candidate_state_token
+```
+
+The first identifies the exact canonical roster state the teacher reviewed,
+including Core's explicit absent-roster state. The second identifies the exact
+validated candidate roster. The suite retains both only in the in-memory setup
+plan; it does not interpret, regenerate, persist, or place them in suite settings.
 
 ## Standards
 
@@ -226,25 +240,38 @@ protection.
 ## APPLY preflight and write ordering
 
 After exact `APPLY`, the suite first re-reads the reviewed shared state before any
-mutation. If the workspace, Core-owned state, selected roster source, standards
-baseline, or Academic Period state changed after review, setup refuses the write
-and instructs the teacher to rerun `pds setup`.
+mutation. For rosters, it asks Core to preview the same class and source again and
+compares the newly observed `current_state_token` and `candidate_state_token` with
+the original reviewed values. It never replaces the reviewed tokens with newly
+observed approval state.
+
+If the workspace, reviewed canonical roster, reviewed roster candidate, standards
+baseline, or Academic Period state changed after review, setup refuses before the
+first mutation and instructs the teacher to rerun `pds setup`.
 
 If preflight succeeds, writes are sequenced through public Core services in this
 order:
 
 1. open the school year if needed;
 2. create required class metadata/folders;
-3. create or explicitly replace reviewed rosters;
+3. commit reviewed roster candidates through Core's guarded roster-import service;
 4. install the explicitly selected starter standards pack if needed;
 5. create the initial Academic Period calendar if needed.
 
 After each successful step, enough Core state is re-read to verify the intended
 result.
 
-Roster replacement receives a just-in-time recheck before `overwrite=True` is
-used. Standards receive a just-in-time baseline recheck and are installed with
-`overwrite_conflicts=False`.
+Roster CREATE/REPLACE calls
+`pds_core.roster_imports.commit_roster_import(...)` with both original reviewed
+tokens and the original source path. Core therefore protects candidate changes,
+canonical changes, first-import races, and the race window after suite preflight.
+The suite has no direct `write_class_roster(..., overwrite=True)` fallback if
+Core refuses the guarded commit.
+
+After a successful roster commit, the suite verifies the Core commit result and
+uses Core's guarded preview again to confirm that canonical state matches the
+reviewed candidate. Standards separately receive their existing just-in-time
+baseline recheck and are installed with `overwrite_conflicts=False`.
 
 ## Failure and rerun semantics
 
@@ -296,8 +323,11 @@ python .\scripts\smoke_test_classroom_setup_wheel.py <suite-wheel> <core-wheel>
 The smoke test creates an isolated virtual environment and synthetic user profile,
 removes inherited `PYTHONPATH` and `PDS_WORKSPACE_ROOT`, and verifies both installed
 entry surfaces. It proves that lowercase `apply` does not authorize mutation,
-cancellation leaves shared classroom state unchanged, exact `APPLY` opens the
-explicit school year, no suite setup-plan artifact is persisted, and a rerun of
-already-current state is an idempotent no-op.
+cancellation leaves shared classroom state unchanged, the installed suite binds
+Core's guarded roster preview/commit services instead of a direct roster writer,
+exact `APPLY` opens the explicit school year and commits a synthetic reviewed
+roster, Core's post-commit guarded preview matches that candidate, no suite
+setup-plan artifact is persisted, and a rerun of already-current state is an
+idempotent no-op.
 
 All smoke-test data is synthetic.

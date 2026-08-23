@@ -54,14 +54,14 @@
       "external_prerequisites": [],
       "import_name": "pds_core",
       "release": {
-        "sha256": "be28c061b38463ef59ebc328ed1aa443767fe7f2c626babb769c2d8e5932f308",
-        "tag": "v0.6.0",
-        "wheel": "pds_core-0.6.0-py3-none-any.whl"
+        "tag": "v0.6.2",
+        "wheel": "pds_core-0.6.2-py3-none-any.whl",
+        "sha256": "b9d5de7d467d18716f415da87f359e940603d9c738a3a9ae9309272ebe78a848"
       },
       "repository": "Paper-Data-Suite/pds-core",
       "required": true,
       "requires_python": ">=3.11",
-      "version": "0.6.0"
+      "version": "0.6.2"
     },
     {
       "capabilities": [
