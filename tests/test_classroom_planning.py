@@ -146,6 +146,7 @@ class FakePlanningCore:
     def __init__(self, root: Path) -> None:
         self.root = root
         self.rosters: dict[Path, FakeRoster] = {}
+        self.canonical_rosters: dict[str, FakeRoster] = {}
         self.starter = FakeLibrary(standards=("s1", "s2"), profiles=("p1",))
         self.merge_result = FakeMergeResult(
             pack_id="starter",
@@ -193,6 +194,71 @@ class FakePlanningCore:
         if source.name == "invalid.csv":
             raise FakeRosterValidationError()
         return self.rosters[source]
+
+    @staticmethod
+    def _roster_token(value: FakeRoster | None) -> str:
+        if value is None:
+            return "synthetic:absent"
+        return "synthetic:" + "|".join(
+            (
+                value.class_id,
+                ",".join(value.columns),
+                ";".join(
+                    f"{student.student_id}:{student.first_name}:{student.last_name}"
+                    for student in value.students
+                ),
+            )
+        )
+
+    def plan_guarded_roster(
+        self,
+        workspace_root: str | Path,
+        class_id: str,
+        candidate: object,
+    ) -> object:
+        assert Path(workspace_root) == self.root
+        incoming = (
+            self.load_roster(candidate)
+            if isinstance(candidate, (str, Path))
+            else cast(FakeRoster, candidate)
+        )
+        if incoming.class_id != class_id:
+            error = ValueError("candidate class mismatch")
+            error.expected_class_id = class_id  # type: ignore[attr-defined]
+            error.actual_class_id = incoming.class_id  # type: ignore[attr-defined]
+            raise error
+
+        current = self.canonical_rosters.get(class_id)
+        current_by_id = (
+            {} if current is None else {s.student_id: s for s in current.students}
+        )
+        incoming_by_id = {s.student_id: s for s in incoming.students}
+        additions = []
+        changes = []
+        removals = []
+        unchanged = []
+        for student_id in sorted(set(current_by_id) | set(incoming_by_id)):
+            old = current_by_id.get(student_id)
+            new = incoming_by_id.get(student_id)
+            if old is None:
+                additions.append(new)
+            elif new is None:
+                removals.append(old)
+            elif old == new:
+                unchanged.append(student_id)
+            else:
+                changes.append(SimpleNamespace(student_id=student_id))
+        return SimpleNamespace(
+            class_id=class_id,
+            candidate=incoming,
+            current_roster_present=current is not None,
+            current_state_token=self._roster_token(current),
+            candidate_state_token=self._roster_token(incoming),
+            additions=tuple(additions),
+            changes=tuple(changes),
+            removals=tuple(removals),
+            unchanged_student_ids=tuple(unchanged),
+        )
 
     def standards_library_path(self, workspace_root: str | Path) -> Path:
         return Path(workspace_root) / "standards" / "library.json"
@@ -284,6 +350,7 @@ class FakePlanningCore:
             academic_period_calendar_record_type="academic_period_calendar",
             academic_period_types=frozenset({"quarter", "semester"}),
             academic_period_lifecycles=frozenset({"planned", "active", "closed"}),
+            plan_guarded_roster_import=self.plan_guarded_roster,
         )
 
 
@@ -398,6 +465,9 @@ def test_planning_service_loader_keeps_writers_out_of_pre_apply_surface() -> Non
         "pds_core.rosters": SimpleNamespace(
             load_roster=lambda path: None,
             write_class_roster=lambda *args, **kwargs: None,
+        ),
+        "pds_core.roster_imports": SimpleNamespace(
+            plan_roster_import=lambda *args, **kwargs: SimpleNamespace(),
         ),
         "pds_core.standards": SimpleNamespace(
             load_workspace_standards_library=lambda root: None,
@@ -592,15 +662,13 @@ def test_roster_plan_refuses_source_for_different_class(tmp_path: Path) -> None:
     source = tmp_path / "other.csv"
     core.rosters[source] = roster(student("s1"), source=source, class_id="eng11")
 
-    plan = plan_roster_import(
-        assessment(tmp_path),
-        "eng10",
-        source,
-        services=core.services(),
-    )
-
-    assert plan.action is RosterAction.REFUSE
-    assert plan.blocks_apply is True
+    with pytest.raises(RosterSourcePlanningError, match="belongs to class eng11"):
+        plan_roster_import(
+            assessment(tmp_path),
+            "eng10",
+            source,
+            services=core.services(),
+        )
 
 
 def test_roster_plan_create_when_no_existing_roster(tmp_path: Path) -> None:
@@ -630,6 +698,7 @@ def test_roster_plan_keep_ignores_only_source_path(tmp_path: Path) -> None:
         source=tmp_path / "classes" / "eng10" / "roster.csv",
     )
     core.rosters[source] = incoming
+    core.canonical_rosters["eng10"] = existing
     current = assessment(
         tmp_path,
         classes=(
@@ -663,6 +732,7 @@ def test_roster_plan_replace_uses_student_id_and_reports_counts(tmp_path: Path) 
         student("s4"),
         source=tmp_path / "canonical.csv",
     )
+    core.canonical_rosters["eng10"] = existing
     current = assessment(
         tmp_path,
         classes=(
@@ -681,6 +751,8 @@ def test_roster_plan_replace_uses_student_id_and_reports_counts(tmp_path: Path) 
     assert plan.unchanged_count == 1
     assert plan.conflicting_existing_count == 1
     assert plan.removed_existing_count == 1
+    assert plan.current_state_token == core._roster_token(existing)
+    assert plan.candidate_state_token == core._roster_token(core.rosters[source])
 
 
 def test_standards_plan_requires_explicit_advertised_pack(tmp_path: Path) -> None:

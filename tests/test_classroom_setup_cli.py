@@ -300,8 +300,9 @@ def test_final_review_shows_whole_roster_counts_without_rows(tmp_path: Path) -> 
 
     assert "eng10: REPLACE" in rendered
     assert "Incoming students: 2" in rendered
-    assert "Conflicting existing: 1" in rendered
-    assert "Existing absent from import: 1" in rendered
+    assert "Additions: 1" in rendered
+    assert "Changes: 1" in rendered
+    assert "Removals: 1" in rendered
     assert "teacher-private-roster.csv" not in rendered
     assert "Student" not in rendered
     assert "s1" not in rendered

@@ -132,7 +132,7 @@ def test_artifact_requirements_are_machine_readable(
     assert payload["constraints"] == [
         "paper-data-suite==0.1.0.dev0",
         "pds-concord==0.2.0",
-        "pds-core==0.6.0",
+        "pds-core==0.6.2",
         "pds-vitrine==0.2.0",
         "quillan==0.9.0",
         "scoreform==0.10.0",

@@ -49,7 +49,7 @@ def test_bootstrap_acceptance_checks_exact_install_and_idempotence() -> None:
     block = text[text.index("  bootstrap-windows:") :]
 
     assert '"paper-data-suite": ("0.1.0.dev0", "paper_data_suite")' in block
-    assert '"pds-core": ("0.6.0", "pds_core")' in block
+    assert '"pds-core": ("0.6.2", "pds_core")' in block
     assert '"pds-concord": ("0.2.0", "concord")' in block
     assert '"quillan": ("0.9.0", "quillan")' in block
     assert '"scoreform": ("0.10.0", "scoreform")' in block

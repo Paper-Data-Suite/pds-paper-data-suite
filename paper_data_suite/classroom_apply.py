@@ -9,7 +9,7 @@ reports partial success without claiming a cross-domain rollback.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib import import_module, metadata
@@ -105,6 +105,26 @@ class ClassRosterWriter(Protocol):
     ) -> Path: ...
 
 
+class RosterImportCommitResultLike(Protocol):
+    class_id: str
+    roster_path: Path
+    roster: ComparableRosterLike
+    previous_state_token: str
+    committed_state_token: str
+
+
+class RosterImportCommitter(Protocol):
+    def __call__(
+        self,
+        workspace_root: str | Path,
+        class_id: str,
+        candidate: object,
+        *,
+        expected_current_state_token: str,
+        expected_candidate_state_token: str,
+    ) -> RosterImportCommitResultLike: ...
+
+
 class StarterStandardsInstaller(Protocol):
     def __call__(
         self,
@@ -133,9 +153,12 @@ class CoreClassroomApplyServices:
     planning: CoreClassroomPlanningServices
     open_school_year: SchoolYearOpener
     write_class_metadata_for_class: ClassMetadataWriter
-    write_class_roster: ClassRosterWriter
+    write_class_roster: ClassRosterWriter | None
     install_starter_standards_library: StarterStandardsInstaller
     write_academic_period_calendar: AcademicPeriodCalendarWriter
+    commit_roster_import: RosterImportCommitter | None = None
+    roster_import_conflict_error: type[Exception] = Exception
+    roster_import_candidate_changed_error: type[Exception] = Exception
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +181,20 @@ def _required_callable(module: object, module_name: str, name: str) -> object:
     if not callable(value):
         raise CoreClassroomApplyServiceError(
             "Suite-qualified Core does not expose public callable "
+            f"{module_name}.{name}."
+        )
+    return value
+
+
+def _required_exception_type(
+    module: object,
+    module_name: str,
+    name: str,
+) -> type[Exception]:
+    value = getattr(module, name, None)
+    if not isinstance(value, type) or not issubclass(value, Exception):
+        raise CoreClassroomApplyServiceError(
+            "Suite-qualified Core does not expose public exception type "
             f"{module_name}.{name}."
         )
     return value
@@ -186,7 +223,7 @@ def load_core_classroom_apply_services(
         module_importer=module_importer,
     )
     school_years = _import_core_module("pds_core.school_years", module_importer)
-    classes = _import_core_module("pds_core.classes", module_importer)
+    roster_imports = _import_core_module("pds_core.roster_imports", module_importer)
     class_metadata = _import_core_module("pds_core.class_metadata", module_importer)
     starter_standards = _import_core_module(
         "pds_core.starter_standards",
@@ -214,14 +251,7 @@ def load_core_classroom_apply_services(
                 "write_class_metadata_for_class",
             ),
         ),
-        write_class_roster=cast(
-            ClassRosterWriter,
-            _required_callable(
-                classes,
-                "pds_core.classes",
-                "write_class_roster",
-            ),
-        ),
+        write_class_roster=None,
         install_starter_standards_library=cast(
             StarterStandardsInstaller,
             _required_callable(
@@ -238,6 +268,24 @@ def load_core_classroom_apply_services(
                 "write_academic_period_calendar",
             ),
         ),
+        commit_roster_import=cast(
+            RosterImportCommitter,
+            _required_callable(
+                roster_imports,
+                "pds_core.roster_imports",
+                "commit_roster_import",
+            ),
+        ),
+        roster_import_conflict_error=_required_exception_type(
+            roster_imports,
+            "pds_core.roster_imports",
+            "RosterImportConflictError",
+        ),
+        roster_import_candidate_changed_error=_required_exception_type(
+            roster_imports,
+            "pds_core.roster_imports",
+            "RosterImportCandidateChangedError",
+        ),
     )
 
 
@@ -248,27 +296,6 @@ def _metadata_material(value: ClassMetadataLike | None) -> object:
         value.class_id,
         value.school_year,
         dict(value.module_details),
-    )
-
-
-def _student_material(value: object) -> tuple[object, ...]:
-    return (
-        getattr(value, "class_id"),
-        getattr(value, "student_id"),
-        getattr(value, "last_name"),
-        getattr(value, "first_name"),
-        getattr(value, "period"),
-        tuple(sorted(cast(Mapping[str, str], getattr(value, "extra_fields")).items())),
-    )
-
-
-def _roster_material(value: ComparableRosterLike | None) -> object:
-    if value is None:
-        return None
-    return (
-        value.class_id,
-        tuple(value.columns),
-        tuple(_student_material(student) for student in value.students),
     )
 
 
@@ -313,7 +340,6 @@ def _assessment_material(value: SharedSetupAssessment) -> tuple[object, ...]:
         (
             item.class_id,
             _metadata_material(item.metadata),
-            _roster_material(cast(ComparableRosterLike | None, item.roster)),
         )
         for item in sorted(value.classes, key=lambda item: item.class_id)
     )
@@ -380,26 +406,63 @@ def _preflight_period_state(
             )
 
 
-def _preflight_roster_sources(
+def _guarded_roster_preview(
+    root: Path,
+    roster_plan: object,
+    services: CoreClassroomApplyServices,
+    *,
+    phase: str,
+) -> object:
+    planner = services.planning.plan_guarded_roster_import
+    if planner is None:
+        raise ClassroomSetupPreflightError(
+            "Suite-qualified Core guarded roster planning is unavailable."
+        )
+
+    class_id = cast(str, getattr(roster_plan, "class_id"))
+    source_path = cast(Path, getattr(roster_plan, "source_path"))
+    expected_current = cast(str, getattr(roster_plan, "current_state_token"))
+    expected_candidate = cast(str, getattr(roster_plan, "candidate_state_token"))
+    if not expected_current or not expected_candidate:
+        raise ClassroomSetupPreflightError(
+            f"Reviewed roster for {class_id} is missing Core guarded-state tokens."
+        )
+
+    try:
+        preview = planner(root, class_id, source_path)
+    except Exception as error:
+        message = str(error)[:500] or error.__class__.__name__
+        raise ClassroomSetupPreflightError(
+            f"Roster for {class_id} could not be revalidated {phase}: {message}"
+        ) from error
+
+    actual_candidate = getattr(preview, "candidate_state_token", None)
+    actual_current = getattr(preview, "current_state_token", None)
+    if actual_candidate != expected_candidate:
+        raise ClassroomSetupPreflightError(
+            f"Roster source for {class_id} changed after review. "
+            "Rerun 'pds setup' before applying it."
+        )
+    if actual_current != expected_current:
+        raise ClassroomSetupPreflightError(
+            f"Canonical roster for {class_id} changed after review. "
+            "Rerun 'pds setup' before applying it."
+        )
+    return preview
+
+
+def _preflight_rosters(
+    root: Path,
     plan: SharedSetupPlan,
     services: CoreClassroomApplyServices,
 ) -> None:
     for roster_plan in plan.rosters:
-        try:
-            current_source = services.planning.load_roster(roster_plan.source_path)
-        except Exception as error:
-            message = str(error)[:500] or error.__class__.__name__
-            raise ClassroomSetupPreflightError(
-                f"Roster source for {roster_plan.class_id} could not be revalidated: "
-                f"{message}"
-            ) from error
-        if _roster_material(current_source) != _roster_material(
-            roster_plan.incoming_roster
-        ):
-            raise ClassroomSetupPreflightError(
-                f"Roster source for {roster_plan.class_id} changed after review. "
-                "Rerun 'pds setup' before applying it."
-            )
+        _guarded_roster_preview(
+            root,
+            roster_plan,
+            services,
+            phase="before APPLY",
+        )
 
 
 def _preflight_standards(
@@ -464,7 +527,7 @@ def preflight_setup_plan(
             "rerun 'pds setup' to review the current state."
         )
 
-    _preflight_roster_sources(plan, services)
+    _preflight_rosters(current.workspace_root, plan, services)
     _preflight_standards(current, plan, services)
     _preflight_period_state(current, plan, services)
     return SetupPreflight(assessment=current)
@@ -519,25 +582,50 @@ def _verify_class(
         )
 
 
-def _verify_roster(
+def _verify_roster_commit(
     root: Path,
-    expected: ComparableRosterLike,
+    roster_plan: object,
+    result: RosterImportCommitResultLike,
     services: CoreClassroomApplyServices,
 ) -> None:
-    try:
-        current = services.planning.readers.load_class_roster(
-            root,
-            expected.class_id,
+    class_id = cast(str, getattr(roster_plan, "class_id"))
+    expected_current = cast(str, getattr(roster_plan, "current_state_token"))
+    expected_candidate = cast(str, getattr(roster_plan, "candidate_state_token"))
+
+    if result.class_id != class_id:
+        raise ClassroomSetupVerificationError(
+            f"Core committed roster for unexpected class {result.class_id}."
         )
+    if result.previous_state_token != expected_current:
+        raise ClassroomSetupVerificationError(
+            f"Core roster commit for {class_id} reports an unexpected prior state."
+        )
+    if result.committed_state_token != expected_candidate:
+        raise ClassroomSetupVerificationError(
+            f"Core roster commit for {class_id} differs from the reviewed candidate."
+        )
+
+    planner = services.planning.plan_guarded_roster_import
+    if planner is None:
+        raise ClassroomSetupVerificationError(
+            "Core guarded roster planning is unavailable for commit verification."
+        )
+    try:
+        verified = planner(root, class_id, result.roster)
     except Exception as error:
         raise ClassroomSetupVerificationError(
-            f"Could not verify roster for {expected.class_id}: {error}"
+            f"Could not verify guarded roster commit for {class_id}: {error}"
         ) from error
-    if _roster_material(cast(ComparableRosterLike, current)) != _roster_material(
-        expected
+
+    if (
+        verified.current_state_token != expected_candidate
+        or verified.candidate_state_token != expected_candidate
+        or len(verified.additions) != 0
+        or len(verified.changes) != 0
+        or len(verified.removals) != 0
     ):
         raise ClassroomSetupVerificationError(
-            f"Core roster for {expected.class_id} differs from the reviewed import."
+            f"Core canonical roster for {class_id} does not match the reviewed commit."
         )
 
 
@@ -582,34 +670,6 @@ def _verify_academic_periods(
     ):
         raise ClassroomSetupVerificationError(
             "Core Academic Period current calendar differs from the reviewed result."
-        )
-
-
-def _jit_check_roster_replacement(
-    root: Path,
-    plan_roster: object,
-    services: CoreClassroomApplyServices,
-) -> None:
-    expected_existing = cast(
-        ComparableRosterLike | None,
-        getattr(plan_roster, "existing_roster"),
-    )
-    if expected_existing is None:
-        raise ClassroomSetupApplyError(
-            "Reviewed roster replacement is missing its existing Core baseline."
-        )
-    class_id = cast(str, getattr(plan_roster, "class_id"))
-    try:
-        current = services.planning.readers.load_class_roster(root, class_id)
-    except Exception as error:
-        raise ClassroomSetupApplyError(
-            f"Could not re-check existing roster for {class_id}: {error}"
-        ) from error
-    if _roster_material(cast(ComparableRosterLike, current)) != _roster_material(
-        expected_existing
-    ):
-        raise ClassroomSetupApplyError(
-            f"Roster for {class_id} changed during APPLY; replacement was refused."
         )
 
 
@@ -690,26 +750,49 @@ def _execute_after_preflight(
             completed.append(f"class:{action}:{class_plan.class_id}")
 
         for roster_plan in plan.rosters:
-            if roster_plan.action is RosterAction.CREATE:
-                services.write_class_roster(
-                    root,
-                    roster_plan.incoming_roster,
-                    overwrite=False,
+            if roster_plan.action in {RosterAction.CREATE, RosterAction.REPLACE}:
+                commit = services.commit_roster_import
+                if commit is None:
+                    raise ClassroomSetupApplyError(
+                        "Suite-qualified Core guarded roster commit is unavailable."
+                    )
+                try:
+                    commit_result = commit(
+                        root,
+                        roster_plan.class_id,
+                        roster_plan.source_path,
+                        expected_current_state_token=(
+                            roster_plan.current_state_token
+                        ),
+                        expected_candidate_state_token=(
+                            roster_plan.candidate_state_token
+                        ),
+                    )
+                except services.roster_import_candidate_changed_error as error:
+                    raise ClassroomSetupApplyError(
+                        f"Roster source for {roster_plan.class_id} changed after "
+                        "review; Core refused the guarded commit."
+                    ) from error
+                except services.roster_import_conflict_error as error:
+                    raise ClassroomSetupApplyError(
+                        f"Canonical roster for {roster_plan.class_id} changed after "
+                        "review; Core refused the guarded commit."
+                    ) from error
+                _verify_roster_commit(root, roster_plan, commit_result, services)
+                changed.append(
+                    f"roster:{roster_plan.action.value}:{roster_plan.class_id}"
                 )
-                changed.append(f"roster:CREATE:{roster_plan.class_id}")
-            elif roster_plan.action is RosterAction.REPLACE:
-                _jit_check_roster_replacement(root, roster_plan, services)
-                services.write_class_roster(
+            elif roster_plan.action is RosterAction.KEEP:
+                _guarded_roster_preview(
                     root,
-                    roster_plan.incoming_roster,
-                    overwrite=True,
+                    roster_plan,
+                    services,
+                    phase="during APPLY",
                 )
-                changed.append(f"roster:REPLACE:{roster_plan.class_id}")
-            elif roster_plan.action is not RosterAction.KEEP:
+            else:
                 raise ClassroomSetupApplyError(
                     f"Roster action {roster_plan.action.value} is not APPLY-eligible."
                 )
-            _verify_roster(root, roster_plan.incoming_roster, services)
             completed.append(
                 f"roster:{roster_plan.action.value}:{roster_plan.class_id}"
             )

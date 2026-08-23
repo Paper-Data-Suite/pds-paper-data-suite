@@ -33,7 +33,7 @@ fail-closed:
 
 - suite-qualified Python: `>=3.11,<3.15`;
 - tested Python minors: 3.11, 3.12, 3.13, and 3.14;
-- required Core: `pds-core==0.6.0`;
+- required Core: `pds-core==0.6.2`;
 - optional qualified applications:
   - `pds-concord==0.2.0`;
   - `quillan==0.9.0`;
@@ -105,10 +105,12 @@ Python dependency consistency, applicable external command prerequisites, and
 uses public Core services for workspace, active-school-year, and registry health.
 It does not install, update, create, repair, or modify those resources.
 
-The current qualified Core contract does not expose failure-isolated provider
-execution diagnostics or shared module-reported readiness, so those deeper
-capabilities are reported honestly as `SKIP` rather than being reimplemented in
-the suite.
+Core v0.6.2 now provides failure-isolated validation for Core-defined routing,
+publication, and module-operations provider entry points, and `pds doctor` consumes
+that public diagnostic surface. The exact v0.1.0 application composition does not
+declare a `paper_data_suite.module_operations` provider, so shared module-reported
+readiness remains an honest `SKIP`; installation, routing, publication, and
+launchability are not inferred as readiness.
 
 The operational contract, status/exit semantics, privacy boundary, and
 installed-wheel acceptance requirements are documented in
@@ -379,7 +381,7 @@ python -m pip install --upgrade pip
 
 Install a compatible official PDS Core 0.6.x wheel into the environment first.
 For the current suite development manifest, the exact qualified Core release is
-0.6.0. Do not infer exact suite qualification from the broad package dependency
+0.6.2. Do not infer exact suite qualification from the broad package dependency
 range alone.
 
 After Core is installed:
@@ -468,7 +470,7 @@ python -m build
 python -m twine check .\dist\*
 ```
 
-Then validate and smoke-test the built wheel using the exact Core 0.6.0 wheel:
+Then validate and smoke-test the built wheel using the exact Core 0.6.2 wheel:
 
 ```powershell
 python .\scripts\check_package.py <suite-wheel>
