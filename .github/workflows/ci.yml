@@ -43,7 +43,7 @@ jobs:
 
           $coreWheel = Join-Path `
             $coreDirectory `
-            "pds_core-0.6.2-py3-none-any.whl"
+            "pds_core-0.6.3-py3-none-any.whl"
 
           "PDS_CORE_WHEEL=$coreWheel" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -54,11 +54,11 @@ jobs:
           "MYPY_CACHE_DIR=$mypyCache" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Download official Core 0.6.2 wheel
+      - name: Download official Core 0.6.3 wheel
         shell: pwsh
         run: |
           Invoke-WebRequest `
-            -Uri "https://github.com/Paper-Data-Suite/pds-core/releases/download/v0.6.2/pds_core-0.6.2-py3-none-any.whl" `
+            -Uri "https://github.com/Paper-Data-Suite/pds-core/releases/download/v0.6.3/pds_core-0.6.3-py3-none-any.whl" `
             -OutFile $env:PDS_CORE_WHEEL `
             -ErrorAction Stop
 
@@ -469,7 +469,7 @@ jobs:
           }
 
           $expected = @(
-            "PDS Core 0.6.2: install_missing",
+            "PDS Core 0.6.3: install_missing",
             "Paper Data Suite 0.1.0.dev0: install_missing",
             "Concord 0.2.0: install_missing",
             "Quillan 0.9.0: install_missing",
@@ -602,7 +602,7 @@ jobs:
           site_packages = (target / "Lib" / "site-packages").resolve()
           expected = {
               "paper-data-suite": ("0.1.0.dev0", "paper_data_suite"),
-              "pds-core": ("0.6.2", "pds_core"),
+              "pds-core": ("0.6.3", "pds_core"),
               "pds-concord": ("0.2.0", "concord"),
               "quillan": ("0.9.0", "quillan"),
               "scoreform": ("0.10.0", "scoreform"),
@@ -675,7 +675,7 @@ jobs:
 
           $expected = @(
             "Environment action: keep_environment",
-            "PDS Core 0.6.2: keep_exact",
+            "PDS Core 0.6.3: keep_exact",
             "Paper Data Suite 0.1.0.dev0: keep_exact",
             "Concord 0.2.0: keep_exact",
             "Quillan 0.9.0: keep_exact",

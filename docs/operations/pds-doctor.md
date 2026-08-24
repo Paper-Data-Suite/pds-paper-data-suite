@@ -67,7 +67,7 @@ The bundled release-compatibility manifest is the authority for:
 `doctor` does not infer compatibility from repository `main`, package-manager
 "latest" results, or the fact that a newer package happens to install.
 
-A broad package dependency such as `pds-core>=0.6,<0.7` is not equivalent to the
+A broad package dependency such as `pds-core>=0.6.3,<0.7` is not equivalent to the
 exact Core release qualified by the active suite manifest.
 
 ## Diagnostic coverage
@@ -156,7 +156,7 @@ student evidence merely to prove environment health.
 
 ## Core provider diagnostics and module operations
 
-Core v0.6.2 exposes a separate failure-isolated diagnostic surface for the
+Core v0.6.3 exposes a separate failure-isolated diagnostic surface for the
 Core-defined provider kinds:
 
 ```text
@@ -176,7 +176,7 @@ the exact manifest/package/entry-point metadata checks described above. Core own
 the question of whether an installed provider candidate satisfies the Core-defined
 runtime contract.
 
-Core v0.6.2 also defines module-operations contract v1 at:
+Core v0.6.3 also defines module-operations contract v1 at:
 
 ```text
 paper_data_suite.module_operations

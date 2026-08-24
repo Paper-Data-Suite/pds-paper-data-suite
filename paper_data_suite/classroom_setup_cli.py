@@ -109,7 +109,8 @@ def render_initial_setup_assessment(assessment: SharedSetupAssessment) -> str:
     lines.extend(
         (
             f"  Standards: {assessment.standards_count} definitions; "
-            f"{assessment.standards_profile_count} profiles",
+            f"{assessment.standards_profile_count} profiles; "
+            f"{assessment.standards_framework_count} frameworks",
             "  Academic Period calendar: "
             + (
                 "none for the active school year"
@@ -141,6 +142,7 @@ def render_starter_standards_packs(assessment: SharedSetupAssessment) -> str:
                 f"    Courses: {_join(pack.courses)}",
                 f"    Standards: {pack.standard_count}",
                 f"    Profiles: {pack.profile_count}",
+                f"    Frameworks: {pack.framework_count}",
             )
         )
     return "\n".join(lines) + "\n"
@@ -231,6 +233,9 @@ def render_setup_plan(
                 f"    Profiles to add: {standards.profiles_to_add}",
                 f"    Profiles identical: {standards.profiles_identical}",
                 f"    Profiles conflicts: {len(standards.profile_conflicts)}",
+                f"    Frameworks to add: {standards.frameworks_to_add}",
+                f"    Frameworks identical: {standards.frameworks_identical}",
+                f"    Frameworks conflicts: {len(standards.framework_conflicts)}",
                 f"    {standards.reason}",
             )
         )

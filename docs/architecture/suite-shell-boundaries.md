@@ -48,8 +48,9 @@ surface that materially changes.
 At the time of the original architecture audit:
 
 - Core 0.6.0 was the shared infrastructure baseline for that historical snapshot.
-  The active exact release authority is the suite compatibility manifest; after
-  issue #38 qualification it is Core 0.6.2.
+  Issue #38 subsequently qualified Core 0.6.2. The active exact release
+  authority remains the suite compatibility manifest; issue #44 now
+  qualifies Core 0.6.3 for the v0.1.0 release candidate.
 - ScoreForm 0.10.0, Quillan 0.9.0, and Concord 0.2.0 are executable applications
   that expose Core routing profiles.
 - ScoreForm, Quillan, and Concord also expose publication-producer profiles.

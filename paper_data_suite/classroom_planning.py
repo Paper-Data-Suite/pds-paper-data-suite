@@ -118,8 +118,12 @@ class StarterMergeResultLike(Protocol):
     profiles_added: int
     profiles_skipped: int
     profiles_overwritten: int
+    frameworks_added: int
+    frameworks_skipped: int
+    frameworks_overwritten: int
     standard_conflicts: Sequence[str]
     profile_conflicts: Sequence[str]
+    framework_conflicts: Sequence[str]
 
     @property
     def has_conflicts(self) -> bool: ...
@@ -303,6 +307,9 @@ class StandardsPlan:
     profiles_identical: int
     profile_conflicts: tuple[str, ...]
     reason: str
+    frameworks_to_add: int = 0
+    frameworks_identical: int = 0
+    framework_conflicts: tuple[str, ...] = ()
 
     @property
     def blocks_apply(self) -> bool:
@@ -861,15 +868,38 @@ def plan_starter_standards(
     except Exception as error:
         raise _planning_failure("starter standards selection", error) from error
 
-    standard_conflicts = tuple(result.standard_conflicts)
-    profile_conflicts = tuple(result.profile_conflicts)
-    if standard_conflicts or profile_conflicts:
+    try:
+        standard_conflicts = tuple(result.standard_conflicts)
+        profile_conflicts = tuple(result.profile_conflicts)
+        framework_conflicts = tuple(result.framework_conflicts)
+        has_conflicts = result.has_conflicts
+        changed_count = result.changed_count
+    except (AttributeError, TypeError) as error:
+        raise ClassroomSetupPlanningError(
+            "Core returned an invalid framework-aware starter merge result."
+        ) from error
+
+    if not isinstance(has_conflicts, bool):
+        raise ClassroomSetupPlanningError(
+            "Core starter merge result has an invalid aggregate conflict flag."
+        )
+    if (
+        isinstance(changed_count, bool)
+        or not isinstance(changed_count, int)
+        or changed_count < 0
+    ):
+        raise ClassroomSetupPlanningError(
+            "Core starter merge result has an invalid changed-count value."
+        )
+
+    if has_conflicts:
         action = StandardsAction.REFUSE
         reason = (
             f"Starter standards pack {pack_id} conflicts with protected existing "
-            "standards or profiles; guided setup will not overwrite them."
+            "standards, profiles, or frameworks; guided setup will not overwrite "
+            "them."
         )
-    elif result.changed_count == 0:
+    elif changed_count == 0:
         action = StandardsAction.KEEP
         reason = f"Starter standards pack {pack_id} is already fully present."
     else:
@@ -888,6 +918,9 @@ def plan_starter_standards(
         profiles_identical=result.profiles_skipped,
         profile_conflicts=profile_conflicts,
         reason=reason,
+        frameworks_to_add=result.frameworks_added,
+        frameworks_identical=result.frameworks_skipped,
+        framework_conflicts=framework_conflicts,
     )
 
 

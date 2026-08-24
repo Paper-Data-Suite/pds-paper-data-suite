@@ -69,6 +69,7 @@ class FakeRoster:
 class FakeLibrary:
     standards: tuple[object, ...]
     profiles: tuple[object, ...]
+    frameworks: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,8 @@ class FakeStarterPack:
     courses: tuple[str, ...] = ("English 10",)
     standard_count: int = 2
     profile_count: int = 1
+    framework_count: int = 1
+    framework_ids: tuple[str, ...] = ("synthetic_framework",)
 
 
 @dataclass(frozen=True)
@@ -92,12 +95,22 @@ class FakeMergeResult:
     profiles_added: int
     profiles_skipped: int
     profiles_overwritten: int
+    frameworks_added: int = 0
+    frameworks_skipped: int = 0
+    frameworks_overwritten: int = 0
     standard_conflicts: tuple[str, ...] = ()
     profile_conflicts: tuple[str, ...] = ()
+    framework_conflicts: tuple[str, ...] = ()
+    aggregate_conflict: bool = False
 
     @property
     def has_conflicts(self) -> bool:
-        return bool(self.standard_conflicts or self.profile_conflicts)
+        return bool(
+            self.aggregate_conflict
+            or self.standard_conflicts
+            or self.profile_conflicts
+            or self.framework_conflicts
+        )
 
     @property
     def changed_count(self) -> int:
@@ -106,6 +119,8 @@ class FakeMergeResult:
             + self.standards_overwritten
             + self.profiles_added
             + self.profiles_overwritten
+            + self.frameworks_added
+            + self.frameworks_overwritten
         )
 
 
@@ -147,7 +162,11 @@ class FakePlanningCore:
         self.root = root
         self.rosters: dict[Path, FakeRoster] = {}
         self.canonical_rosters: dict[str, FakeRoster] = {}
-        self.starter = FakeLibrary(standards=("s1", "s2"), profiles=("p1",))
+        self.starter = FakeLibrary(
+            standards=("s1", "s2"),
+            profiles=("p1",),
+            frameworks=("f1",),
+        )
         self.merge_result = FakeMergeResult(
             pack_id="starter",
             target_path=root / "standards" / "library.json",
@@ -157,8 +176,13 @@ class FakePlanningCore:
             profiles_added=1,
             profiles_skipped=0,
             profiles_overwritten=0,
+            frameworks_added=1,
         )
-        self.merged = FakeLibrary(standards=("s1", "s2"), profiles=("p1",))
+        self.merged = FakeLibrary(
+            standards=("s1", "s2"),
+            profiles=("p1",),
+            frameworks=("f1",),
+        )
         self.calendar_validation_error: Exception | None = None
         self.current_calendars: dict[str, FakeCalendar] = {}
 
@@ -773,6 +797,7 @@ def test_standards_plan_install_keep_and_refuse(tmp_path: Path) -> None:
     assert install.action is StandardsAction.INSTALL
     assert install.standards_to_add == 2
     assert install.profiles_to_add == 1
+    assert install.frameworks_to_add == 1
 
     core.merge_result = FakeMergeResult(
         pack_id="starter",
@@ -783,10 +808,12 @@ def test_standards_plan_install_keep_and_refuse(tmp_path: Path) -> None:
         profiles_added=0,
         profiles_skipped=1,
         profiles_overwritten=0,
+        frameworks_skipped=1,
     )
     keep = plan_starter_standards(current, "starter", services=core.services())
     assert keep.action is StandardsAction.KEEP
     assert keep.standards_identical == 2
+    assert keep.frameworks_identical == 1
 
     core.merge_result = FakeMergeResult(
         pack_id="starter",
@@ -804,6 +831,52 @@ def test_standards_plan_install_keep_and_refuse(tmp_path: Path) -> None:
     assert refuse.action is StandardsAction.REFUSE
     assert refuse.standard_conflicts == ("std.conflict",)
     assert refuse.profile_conflicts == ("profile.conflict",)
+
+
+def test_standards_plan_refuses_framework_only_conflict(tmp_path: Path) -> None:
+    core = FakePlanningCore(tmp_path)
+    current = assessment(tmp_path)
+    core.merge_result = FakeMergeResult(
+        pack_id="starter",
+        target_path=tmp_path / "standards" / "library.json",
+        standards_added=0,
+        standards_skipped=2,
+        standards_overwritten=0,
+        profiles_added=0,
+        profiles_skipped=1,
+        profiles_overwritten=0,
+        framework_conflicts=("framework.conflict",),
+    )
+
+    plan = plan_starter_standards(current, "starter", services=core.services())
+
+    assert plan.action is StandardsAction.REFUSE
+    assert plan.framework_conflicts == ("framework.conflict",)
+    assert plan.blocks_apply is True
+
+
+def test_standards_plan_uses_core_aggregate_conflict_flag(tmp_path: Path) -> None:
+    core = FakePlanningCore(tmp_path)
+    current = assessment(tmp_path)
+    core.merge_result = FakeMergeResult(
+        pack_id="starter",
+        target_path=tmp_path / "standards" / "library.json",
+        standards_added=0,
+        standards_skipped=2,
+        standards_overwritten=0,
+        profiles_added=0,
+        profiles_skipped=1,
+        profiles_overwritten=0,
+        frameworks_skipped=1,
+        aggregate_conflict=True,
+    )
+
+    plan = plan_starter_standards(current, "starter", services=core.services())
+
+    assert plan.action is StandardsAction.REFUSE
+    assert plan.standard_conflicts == ()
+    assert plan.profile_conflicts == ()
+    assert plan.framework_conflicts == ()
 
 
 def test_academic_period_plan_skip_and_existing_keep(tmp_path: Path) -> None:

@@ -14,7 +14,7 @@ from paper_data_suite.compatibility import (
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_PROJECT_NAME = "paper-data-suite"
 EXPECTED_PROJECT_PYTHON = ">=3.11"
-EXPECTED_CORE_REQUIREMENT = "pds-core>=0.6,<0.7"
+EXPECTED_CORE_REQUIREMENT = "pds-core>=0.6.3,<0.7"
 EXPECTED_COMPONENT_IDS = (
     "concord",
     "core",
@@ -62,7 +62,7 @@ def validate_repository_manifest() -> None:
     ]
     if core_requirements != [EXPECTED_CORE_REQUIREMENT]:
         raise ManifestValidationError(
-            "suite package must require exactly pds-core>=0.6,<0.7"
+            "suite package must require exactly pds-core>=0.6.3,<0.7"
         )
 
     component_ids = tuple(item.component_id for item in manifest.components)

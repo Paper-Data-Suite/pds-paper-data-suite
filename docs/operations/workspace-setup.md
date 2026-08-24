@@ -16,7 +16,7 @@ teacher
 
 The suite does not define a second workspace schema, write Core configuration JSON directly, parse Core's private workspace marker, or route shared workspace setup through sibling applications.
 
-The active suite compatibility manifest remains the release authority. The current `0.1.0.dev0` composition qualifies `pds-core 0.6.2` exactly even though the package dependency range is `pds-core>=0.6,<0.7`. Workspace operations fail closed when the installed Core release does not match that exact qualification.
+The active suite compatibility manifest remains the release authority. The current `0.1.0.dev0` composition qualifies `pds-core 0.6.3` exactly while the suite package dependency range is `pds-core>=0.6.3,<0.7`. Workspace operations fail closed when the installed Core release does not match that exact qualification.
 
 ## Commands
 
@@ -239,7 +239,7 @@ The repository includes a dedicated installed workspace smoke test:
 ```powershell
 python .\scripts\smoke_test_workspace_wheel.py `
   <suite-wheel> `
-  <exact-core-0.6.2-wheel>
+  <exact-core-0.6.3-wheel>
 ```
 
 The smoke test creates a fresh virtual environment and synthetic user home outside the repository, installs only the built suite wheel and exact Core wheel, strips source-shadowing and real workspace overrides, and verifies:

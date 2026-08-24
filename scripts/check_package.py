@@ -17,7 +17,7 @@ from packaging.utils import canonicalize_name
 EXPECTED_DISTRIBUTION = "paper-data-suite"
 EXPECTED_VERSION = "0.1.0.dev0"
 EXPECTED_REQUIRES_PYTHON = ">=3.11"
-EXPECTED_CORE_RANGE = SpecifierSet(">=0.6,<0.7")
+EXPECTED_CORE_RANGE = SpecifierSet(">=0.6.3,<0.7")
 EXPECTED_CONSOLE_TARGET = "paper_data_suite.cli:main"
 
 REQUIRED_PACKAGE_FILES = frozenset(

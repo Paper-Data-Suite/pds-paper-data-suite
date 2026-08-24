@@ -40,6 +40,7 @@ class FakeState:
 class FakeLibrary:
     standards: tuple[object, ...] = ()
     profiles: tuple[object, ...] = ()
+    frameworks: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,8 @@ class FakePack:
     courses: tuple[str, ...] = ("English",)
     standard_count: int = 3
     profile_count: int = 1
+    framework_count: int = 1
+    framework_ids: tuple[str, ...] = ("synthetic_framework",)
 
 
 @dataclass(frozen=True)
@@ -115,7 +118,11 @@ def fake_assessment(
         workspace_source="saved_config",
         school_year_state=state,
         classes=classes,
-        standards_library=FakeLibrary((object(), object()), (object(),)),
+        standards_library=FakeLibrary(
+            (object(), object()),
+            (object(),),
+            (object(),),
+        ),
         starter_standards_packs=(FakePack(),),
         academic_period_calendar=calendar,
         academic_period_revision=(
@@ -216,6 +223,7 @@ def test_starter_pack_rendering_uses_only_core_metadata(tmp_path: Path) -> None:
     assert "Courses: English" in rendered
     assert "Standards: 3" in rendered
     assert "Profiles: 1" in rendered
+    assert "Frameworks: 1" in rendered
 
 
 def test_final_review_shows_whole_roster_counts_without_rows(tmp_path: Path) -> None:
@@ -255,6 +263,9 @@ def test_final_review_shows_whole_roster_counts_without_rows(tmp_path: Path) -> 
         profiles_identical=0,
         profile_conflicts=(),
         reason="standards reason",
+        frameworks_to_add=1,
+        frameworks_identical=0,
+        framework_conflicts=(),
     )
     periods = AcademicPeriodPlan(
         "2026-2027",
@@ -306,6 +317,9 @@ def test_final_review_shows_whole_roster_counts_without_rows(tmp_path: Path) -> 
     assert "teacher-private-roster.csv" not in rendered
     assert "Student" not in rendered
     assert "s1" not in rendered
+    assert "Frameworks to add: 1" in rendered
+    assert "Frameworks identical: 0" in rendered
+    assert "Frameworks conflicts: 0" in rendered
     assert "q1 | quarter | Quarter 1" in rendered
     assert "2026-09-01..2026-11-01" in rendered
     assert "parent=none | sequence=1 | lifecycle=planned" in rendered

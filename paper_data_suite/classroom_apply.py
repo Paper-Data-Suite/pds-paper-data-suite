@@ -300,7 +300,11 @@ def _metadata_material(value: ClassMetadataLike | None) -> object:
 
 
 def _standards_material(value: StandardsLibraryLike) -> tuple[object, ...]:
-    return (tuple(value.standards), tuple(value.profiles))
+    return (
+        tuple(value.standards),
+        tuple(value.profiles),
+        tuple(value.frameworks),
+    )
 
 
 def _school_year_state_material(value: object | None) -> object:
@@ -322,6 +326,8 @@ def _starter_pack_material(value: object) -> tuple[object, ...]:
         tuple(getattr(value, "courses")),
         getattr(value, "standard_count"),
         getattr(value, "profile_count"),
+        getattr(value, "framework_count"),
+        tuple(getattr(value, "framework_ids")),
     )
 
 

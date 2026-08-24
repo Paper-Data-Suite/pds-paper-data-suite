@@ -54,8 +54,8 @@ shows the available backup subcommands.
 
 The suite first loads its bundled release-compatibility manifest and requires the
 exact Core version qualified by that suite release. For the current development
-manifest, that is `pds-core==0.6.2`; the broader package dependency
-`pds-core>=0.6,<0.7` does not independently qualify other Core versions.
+manifest, that is `pds-core==0.6.3`; the broader suite package dependency
+`pds-core>=0.6.3,<0.7` does not independently qualify other Core versions.
 
 The suite then uses public `pds_core.workspace.inspect_workspace_root` behavior to
 obtain the current workspace and its resolution source. Backup creation does not:

@@ -96,6 +96,7 @@ class StandardsLibraryLike(Protocol):
 
     standards: Sequence[object]
     profiles: Sequence[object]
+    frameworks: Sequence[object]
 
 
 class StarterStandardsPackLike(Protocol):
@@ -108,6 +109,8 @@ class StarterStandardsPackLike(Protocol):
     courses: Sequence[str]
     standard_count: int
     profile_count: int
+    framework_count: int
+    framework_ids: Sequence[str]
 
 
 class AcademicPeriodCalendarLike(Protocol):
@@ -246,6 +249,10 @@ class SharedSetupAssessment:
     @property
     def standards_profile_count(self) -> int:
         return len(self.standards_library.profiles)
+
+    @property
+    def standards_framework_count(self) -> int:
+        return len(self.standards_library.frameworks)
 
 
 def _required_callable(module: object, module_name: str, name: str) -> object:
