@@ -112,8 +112,8 @@ def test_release_url_is_exact_and_never_latest() -> None:
     url = component_release_url(core)
 
     assert url.endswith(
-        "/pds-core/releases/download/v0.6.2/"
-        "pds_core-0.6.2-py3-none-any.whl"
+        "/pds-core/releases/download/v0.6.3/"
+        "pds_core-0.6.3-py3-none-any.whl"
     )
     assert "/latest/" not in url
     assert "/releases/latest" not in url
@@ -188,7 +188,7 @@ def test_constraints_cover_only_exact_pds_owned_distributions() -> None:
     assert lines == [
         "paper-data-suite==0.1.0.dev0",
         "pds-concord==0.2.0",
-        "pds-core==0.6.2",
+        "pds-core==0.6.3",
         "pds-vitrine==0.2.0",
         "quillan==0.9.0",
         "scoreform==0.10.0",

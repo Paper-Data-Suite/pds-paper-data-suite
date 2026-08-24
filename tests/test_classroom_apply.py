@@ -73,6 +73,7 @@ class FakeRoster:
 class FakeLibrary:
     standards: tuple[object, ...] = ()
     profiles: tuple[object, ...] = ()
+    frameworks: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,8 @@ class FakePack:
     courses: tuple[str, ...] = ("English",)
     standard_count: int = 1
     profile_count: int = 1
+    framework_count: int = 1
+    framework_ids: tuple[str, ...] = ("synthetic_framework",)
 
 
 @dataclass(frozen=True)
@@ -96,12 +99,20 @@ class FakeMergeResult:
     profiles_added: int
     profiles_skipped: int
     profiles_overwritten: int
+    frameworks_added: int = 0
+    frameworks_skipped: int = 0
+    frameworks_overwritten: int = 0
     standard_conflicts: tuple[str, ...] = ()
     profile_conflicts: tuple[str, ...] = ()
+    framework_conflicts: tuple[str, ...] = ()
 
     @property
     def has_conflicts(self) -> bool:
-        return bool(self.standard_conflicts or self.profile_conflicts)
+        return bool(
+            self.standard_conflicts
+            or self.profile_conflicts
+            or self.framework_conflicts
+        )
 
     @property
     def changed_count(self) -> int:
@@ -110,6 +121,8 @@ class FakeMergeResult:
             + self.standards_overwritten
             + self.profiles_added
             + self.profiles_overwritten
+            + self.frameworks_added
+            + self.frameworks_overwritten
         )
 
 
@@ -136,7 +149,7 @@ class FakeApplyCore:
         self.rosters: dict[str, FakeRoster] = {}
         self.roster_sources: dict[Path, FakeRoster] = {}
         self.standards = FakeLibrary()
-        self.starter = FakeLibrary(("s1",), ("p1",))
+        self.starter = FakeLibrary(("s1",), ("p1",), ("f1",))
         self.calendar: FakeCalendar | None = None
         self.events: list[str] = []
         self.fail_class_write = False
@@ -269,6 +282,7 @@ class FakeApplyCore:
         candidate = FakeLibrary(
             existing_library.standards + ("s1",),
             existing_library.profiles + ("p1",),
+            existing_library.frameworks + ("f1",),
         )
         result = FakeMergeResult(
             pack_id="starter",
@@ -279,6 +293,7 @@ class FakeApplyCore:
             profiles_added=1,
             profiles_skipped=0,
             profiles_overwritten=0,
+            frameworks_added=1,
         )
         return candidate, result
 
@@ -533,6 +548,36 @@ def test_preflight_state_drift_refuses_every_write(
     assert core.state is None
 
 
+def test_preflight_framework_only_drift_refuses_every_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    core = FakeApplyCore(tmp_path)
+    reviewed = assessment(core)
+    changed = SharedSetupAssessment(
+        workspace_root=tmp_path,
+        workspace_source="saved_config",
+        school_year_state=None,
+        classes=(),
+        standards_library=FakeLibrary(frameworks=("external-framework",)),
+        starter_standards_packs=(FakePack(),),
+        academic_period_calendar=None,
+        academic_period_revision=None,
+    )
+    monkeypatch.setattr(classroom_apply, "assess_shared_setup", lambda **kw: changed)
+
+    with pytest.raises(ClassroomSetupPreflightError, match="changed after review"):
+        execute_shared_setup_plan(
+            reviewed,
+            SharedSetupPlan(school_plan(), (), (), None, None),
+            services=core.services(),
+            clock=lambda: datetime(2026, 8, 20, tzinfo=UTC),
+        )
+
+    assert core.events == []
+    assert core.state is None
+
+
 def test_apply_executes_core_writes_in_required_order_and_verifies(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -575,7 +620,7 @@ def test_apply_executes_core_writes_in_required_order_and_verifies(
     standards = StandardsPlan(
         "starter",
         StandardsAction.INSTALL,
-        FakeLibrary(("s1",), ("p1",)),
+        FakeLibrary(("s1",), ("p1",), ("f1",)),
         tmp_path / "standards" / "library.json",
         1,
         0,

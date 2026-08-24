@@ -1709,7 +1709,7 @@ class _CoreProviderServices:
 
 
 class _CoreProviderServiceError(RuntimeError):
-    """Raised when Core v0.6.2 provider contracts cannot be loaded safely."""
+    """Raised when Core v0.6.3 provider contracts cannot be loaded safely."""
 
 
 def _load_core_provider_services(
@@ -1891,7 +1891,7 @@ def collect_core_provider_diagnostics(
     module_importer: ModuleImporter = import_module,
     services: _CoreProviderServices | None = None,
 ) -> DoctorReport:
-    """Use Core v0.6.2 failure-isolated provider diagnostics without owning them."""
+    """Use Core v0.6.3 failure-isolated provider diagnostics without owning them."""
     active_manifest = manifest or load_release_compatibility_manifest()
     core = _core_component(active_manifest)
     if core is None:

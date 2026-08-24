@@ -24,7 +24,7 @@ privacy-minimized per-user shell settings facility through `pds settings`.
 Additional teacher-facing workflows are added by later v0.1.0 issues.
 
 The package metadata requires Python 3.11 or newer and
-`pds-core>=0.6,<0.7`. Those broad package requirements do **not** by themselves
+`pds-core>=0.6.3,<0.7`. Those broad package requirements do **not** by themselves
 qualify every matching interpreter or component release for the suite.
 
 The package now carries a versioned machine-readable compatibility declaration.
@@ -33,7 +33,7 @@ fail-closed:
 
 - suite-qualified Python: `>=3.11,<3.15`;
 - tested Python minors: 3.11, 3.12, 3.13, and 3.14;
-- required Core: `pds-core==0.6.2`;
+- required Core: `pds-core==0.6.3`;
 - optional qualified applications:
   - `pds-concord==0.2.0`;
   - `quillan==0.9.0`;
@@ -105,7 +105,7 @@ Python dependency consistency, applicable external command prerequisites, and
 uses public Core services for workspace, active-school-year, and registry health.
 It does not install, update, create, repair, or modify those resources.
 
-Core v0.6.2 now provides failure-isolated validation for Core-defined routing,
+Core v0.6.3 provides failure-isolated validation for Core-defined routing,
 publication, and module-operations provider entry points, and `pds doctor` consumes
 that public diagnostic surface. The exact v0.1.0 application composition does not
 declare a `paper_data_suite.module_operations` provider, so shared module-reported
@@ -253,8 +253,11 @@ reviewed Core state and refuses stale plans.
 Roster imports remain Core-validated and class-scoped. Existing differing rosters
 are shown as whole-roster replacements; the suite does not invent row-level merge
 semantics. Starter standards packs are Core-provided and must be selected
-explicitly. Existing Academic Period calendars are kept unchanged; a new initial
-calendar requires every period field explicitly and is shown in the final review.
+explicitly. With Core v0.6.3, the suite reviews Core-owned standard definitions,
+profiles, and framework metadata together; Core's aggregate conflict result is
+authoritative and any conflict blocks `APPLY`. Existing Academic Period calendars
+are kept unchanged; a new initial calendar requires every period field explicitly
+and is shown in the final review.
 
 A recommended first-time pilot sequence is:
 
@@ -407,7 +410,7 @@ python -m pip install --upgrade pip
 
 Install a compatible official PDS Core 0.6.x wheel into the environment first.
 For the current suite development manifest, the exact qualified Core release is
-0.6.2. Do not infer exact suite qualification from the broad package dependency
+0.6.3. Do not infer exact suite qualification from the broad package dependency
 range alone.
 
 After Core is installed:
@@ -496,7 +499,7 @@ python -m build
 python -m twine check .\dist\*
 ```
 
-Then validate and smoke-test the built wheel using the exact Core 0.6.2 wheel:
+Then validate and smoke-test the built wheel using the exact Core 0.6.3 wheel:
 
 ```powershell
 python .\scripts\check_package.py <suite-wheel>

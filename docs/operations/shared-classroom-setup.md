@@ -32,7 +32,8 @@ authoritative for:
 - class metadata models and persistence;
 - roster parsing, validation, diff semantics, opaque state tokens, guarded
   commit, write serialization, and persistence;
-- standards models, starter-pack contents, merge semantics, and persistence;
+- standards definitions, profiles, framework metadata, starter-pack contents,
+  merge/conflict semantics, and persistence;
 - Academic Period models, hierarchy validation, revisions, and persistence.
 
 The suite does not write Core JSON or CSV files directly and does not maintain a
@@ -40,7 +41,7 @@ second setup schema or persisted setup-plan file.
 
 The active release-compatibility manifest must qualify the installed Core
 release exactly before Core setup services are used. The current development
-manifest qualifies `pds-core==0.6.2`.
+manifest qualifies `pds-core==0.6.3`.
 
 ## Workspace precondition
 
@@ -97,7 +98,7 @@ The first screen is read-only and summarizes:
 - valid discovered class folders;
 - class metadata presence;
 - roster presence and student counts;
-- standards definition/profile counts;
+- standards definition/profile/framework counts;
 - available Core starter standards packs;
 - the current Academic Period calendar revision and period count when relevant.
 
@@ -197,16 +198,24 @@ The existing shared standards library can always be kept unchanged.
 
 Available starter packs come only from the qualified Core release. The command
 shows Core-provided pack ID, title, source, grade bands, courses, standard count,
-and profile count. No pack is selected automatically.
+profile count, and framework count. No pack is selected automatically. Production
+discovery does not hard-code the current pack IDs or assume a fixed number of packs.
 
-In particular, the presence of an NJSLS starter pack does not cause the suite to
-infer New Jersey, a subject, or a course.
+In particular, the presence of an NJSLS or AP CSP starter pack does not cause the
+suite to infer a jurisdiction, subject, course, or framework identity.
 
 For an explicitly selected pack the suite asks Core to perform a dry in-memory
 merge with `overwrite_conflicts=False`. The review reports additions, identical
-records, and conflicts for standards and profiles. Any conflicting protected
-record blocks `APPLY`; the guided workflow never enables overwrite merely to
-finish setup.
+records, and conflicts separately for standard definitions, profiles, and framework
+metadata. Core's aggregate `result.has_conflicts` is authoritative: a conflict in
+any of the three record families produces `REFUSE` and blocks `APPLY`. The guided
+workflow never enables overwrite merely to finish setup.
+
+Core v0.6.3 currently advertises `ap_csp_fall_2023`, `njsls_clks_2020`,
+`njsls_csdt_2020`, and `njsls_ela_2023`. Each is independently selectable. The
+current guided workflow intentionally selects one starter pack per `pds setup`
+invocation; compatible additional packs can be added through later explicit
+invocations. Multi-pack transactional setup remains a usability question for #14.
 
 ## Academic Periods
 
@@ -246,7 +255,8 @@ the original reviewed values. It never replaces the reviewed tokens with newly
 observed approval state.
 
 If the workspace, reviewed canonical roster, reviewed roster candidate, standards
-baseline, or Academic Period state changed after review, setup refuses before the
+baseline (including framework metadata), starter-pack metadata, or Academic Period
+state changed after review, setup refuses before the
 first mutation and instructs the teacher to rerun `pds setup`.
 
 If preflight succeeds, writes are sequenced through public Core services in this

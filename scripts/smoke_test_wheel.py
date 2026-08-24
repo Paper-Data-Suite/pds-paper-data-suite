@@ -258,12 +258,12 @@ print(json.dumps({
             "Installed compatibility manifest component set changed."
         )
     expected_core = {
-        "core_version": "0.6.2",
-        "core_release_tag": "v0.6.2",
-        "core_wheel": "pds_core-0.6.2-py3-none-any.whl",
+        "core_version": "0.6.3",
+        "core_release_tag": "v0.6.3",
+        "core_wheel": "pds_core-0.6.3-py3-none-any.whl",
         "core_sha256": (
-            "b9d5de7d467d18716f415da87f359e94"
-            "0603d9c738a3a9ae9309272ebe78a848"
+            "98d7596ce0eed26e4d56a17bbbbd644d"
+            "b3014259b56a45783a173fe8237af5e5"
         ),
     }
     observed_core = {
@@ -273,7 +273,7 @@ print(json.dumps({
     if observed_core != expected_core:
         raise SmokeTestError(
             "Installed compatibility manifest does not contain the exact "
-            f"qualified Core v0.6.2 release identity: {observed_core!r}"
+            f"qualified Core v0.6.3 release identity: {observed_core!r}"
         )
 
     loaded = cast(dict[str, bool], payload.get("loaded"))

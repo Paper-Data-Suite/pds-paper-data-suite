@@ -116,11 +116,17 @@ Academic Period: q1
 
 The classroom workflow is driven through installed `pds setup`, including exact
 uppercase `APPLY`. Public Core readers then verify the resulting school year,
-class, guarded roster state, starter standards/profiles, and Academic Period
-calendar.
+class, guarded roster state, starter standard definitions/profiles/framework
+metadata, and Academic Period calendar.
 
 The same setup is run again against current state to prove safe reuse without
-roster replacement, duplicate standards, or an extra Academic Period revision.
+roster replacement, duplicate standards/profiles/frameworks, or an extra Academic
+Period revision.
+
+The fixture's `njsls_ela_2023` pack is framework-bearing under Core v0.6.3.
+Acceptance requires exactly one installed framework with durable identity
+`njsls_ela_2023`; the same framework-bearing library must remain readable after the
+byte-exact backup/restore cycle.
 
 ## Health, providers, and application discovery
 
@@ -181,7 +187,8 @@ The workspace is snapshotted independently before backup. Acceptance then proves
 
 The restored workspace is then inspected with an invocation-scoped
 `PDS_WORKSPACE_ROOT` override. Public Core services must still read the expected
-school year, class, roster, standards, and Academic Period state. `pds doctor`
+school year, class, roster, standards definitions/profiles/framework metadata, and
+Academic Period state. `pds doctor`
 must also operate against the restored copy. Removing the override must reveal the
 unchanged original saved selection.
 

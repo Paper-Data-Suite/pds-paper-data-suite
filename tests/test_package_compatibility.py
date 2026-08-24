@@ -54,7 +54,7 @@ def _build_wheel(
             "Name: paper-data-suite",
             "Version: 0.1.0.dev0",
             "Requires-Python: >=3.11",
-            "Requires-Dist: pds-core<0.7,>=0.6",
+            "Requires-Dist: pds-core<0.7,>=0.6.3",
             "",
         )
     )

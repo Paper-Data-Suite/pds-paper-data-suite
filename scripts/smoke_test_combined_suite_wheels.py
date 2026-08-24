@@ -599,6 +599,8 @@ print(json.dumps({{
     "class_ids": [folder.class_id for folder in folders],
     "standards_count": len(library.standards),
     "profile_count": len(library.profiles),
+    "framework_count": len(library.frameworks),
+    "framework_ids": [framework.framework_id for framework in library.frameworks],
     "calendar_revision": None if calendar is None else calendar.calendar_revision,
     "period_ids": (
         [] if calendar is None else [period.period_id for period in calendar.periods]
@@ -628,6 +630,14 @@ print(json.dumps({{
         raise CombinedSuiteSmokeError("Starter standards were not installed.")
     if not isinstance(profile_count, int) or profile_count <= 0:
         raise CombinedSuiteSmokeError("Starter standards profiles were not installed.")
+    if payload.get("framework_count") != 1:
+        raise CombinedSuiteSmokeError(
+            "Starter standards framework metadata was not installed exactly once."
+        )
+    if payload.get("framework_ids") != [_SYNTHETIC_STARTER_PACK]:
+        raise CombinedSuiteSmokeError(
+            "Installed starter framework identity is unexpected."
+        )
     if payload.get("calendar_revision") != 1 or payload.get("period_ids") != ["q1"]:
         raise CombinedSuiteSmokeError("Initial Academic Period calendar is unexpected.")
     expected_roster = {

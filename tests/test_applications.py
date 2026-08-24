@@ -94,7 +94,7 @@ def _manifest() -> ReleaseCompatibilityManifest:
             _component(
                 "core",
                 "pds-core",
-                "0.6.2",
+                "0.6.3",
                 capabilities=("shared_core",),
                 purpose=None,
             ),
@@ -140,7 +140,7 @@ def _entry_point(
 def _base_versions(**overrides: str) -> dict[str, str]:
     result = {
         "paper-data-suite": "0.1.0.dev0",
-        "pds-core": "0.6.2",
+        "pds-core": "0.6.3",
     }
     result.update(overrides)
     return result
@@ -252,7 +252,7 @@ def test_wrong_suite_version_blocks_an_installed_exact_application() -> None:
         version_lookup=_lookup(
             {
                 "paper-data-suite": "9.9.9",
-                "pds-core": "0.6.2",
+                "pds-core": "0.6.3",
                 "pds-concord": "0.2.0",
             }
         ),
@@ -283,7 +283,7 @@ def test_wrong_core_version_blocks_an_installed_exact_application() -> None:
     assert concord is not None
     assert concord.status is ApplicationLaunchStatus.INCOMPATIBLE
     assert "0.6.1" in concord.reason
-    assert "0.6.2" in concord.reason
+    assert "0.6.3" in concord.reason
 
 
 @pytest.mark.parametrize(

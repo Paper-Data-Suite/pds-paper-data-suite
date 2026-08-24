@@ -17,7 +17,7 @@ def _write_roster(path: Path, *, first_name: str = "Alex") -> None:
     )
 
 
-def test_exact_core_v062_guarded_roster_contract_round_trip(tmp_path: Path) -> None:
+def test_exact_core_v063_guarded_roster_contract_round_trip(tmp_path: Path) -> None:
     source = tmp_path / "incoming.csv"
     _write_roster(source)
 
@@ -58,7 +58,7 @@ def test_exact_core_v062_guarded_roster_contract_round_trip(tmp_path: Path) -> N
     assert verified.unchanged_count == 1
 
 
-def test_exact_core_v062_guarded_commit_rejects_changed_candidate(
+def test_exact_core_v063_guarded_commit_rejects_changed_candidate(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "incoming.csv"
@@ -82,7 +82,7 @@ def test_exact_core_v062_guarded_commit_rejects_changed_candidate(
         )
 
 
-def test_exact_core_v062_guarded_commit_rejects_first_import_absent_state_race(
+def test_exact_core_v063_guarded_commit_rejects_first_import_absent_state_race(
     tmp_path: Path,
 ) -> None:
     first = tmp_path / "first.csv"
@@ -115,7 +115,7 @@ def test_exact_core_v062_guarded_commit_rejects_first_import_absent_state_race(
         )
 
 
-def test_exact_core_v062_guarded_commit_rejects_changed_existing_canonical(
+def test_exact_core_v063_guarded_commit_rejects_changed_existing_canonical(
     tmp_path: Path,
 ) -> None:
     initial_source = tmp_path / "initial.csv"
