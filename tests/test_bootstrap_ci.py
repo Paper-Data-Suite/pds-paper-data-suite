@@ -56,6 +56,9 @@ def test_bootstrap_acceptance_checks_exact_install_and_idempotence() -> None:
     assert '"pds-vitrine": ("0.2.0", "vitrine")' in block
     assert "Environment action: keep_environment" in block
     assert block.count(": keep_exact") >= 6
+    assert "Authenticated release artifacts:" in block
+    assert "pip 26.2.1: PASS" in block
+    assert "none required by this plan" not in block
 
 
 def test_bootstrap_acceptance_checks_no_workspace_or_repo_residue() -> None:
