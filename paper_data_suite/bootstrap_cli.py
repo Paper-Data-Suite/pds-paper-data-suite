@@ -19,7 +19,9 @@ from paper_data_suite.bootstrap_artifacts import (
     BootstrapArtifactError,
     pds_constraints_text,
     required_component_artifacts,
+    required_tooling_artifacts,
     verify_required_artifacts,
+    verify_required_tooling_artifacts,
     write_pds_constraints,
 )
 from paper_data_suite.bootstrap_installation import (
@@ -38,6 +40,11 @@ from paper_data_suite.environment_inspection import (
     inspect_windows_environment,
     write_environment_marker,
 )
+from paper_data_suite.release_tooling import (
+    ReleaseToolingError,
+    load_release_tooling_contract,
+    release_tooling_contract_sha256,
+)
 
 
 def _manifest_summary() -> dict[str, object]:
@@ -50,6 +57,15 @@ def _manifest_summary() -> dict[str, object]:
         "tested_minors": list(manifest.python.tested_minors),
         "optional_component_ids": [
             item.component_id for item in manifest.components if not item.required
+        ],
+        "release_tooling_sha256": release_tooling_contract_sha256(),
+        "release_tooling": [
+            {
+                "tool_id": tool.tool_id,
+                "distribution": tool.distribution,
+                "version": tool.version,
+            }
+            for tool in load_release_tooling_contract().tools
         ],
     }
 
@@ -161,21 +177,34 @@ def _artifact_requirement_payload(
     manifest: ReleaseCompatibilityManifest,
     plan: BootstrapPlan,
 ) -> dict[str, object]:
+    tooling_rows = [
+        {
+            "component_id": item.component_id,
+            "display_name": item.display_name,
+            "distribution": item.distribution,
+            "version": item.version,
+            "wheel": item.wheel,
+            "sha256": item.sha256,
+            "url": item.url,
+        }
+        for item in required_tooling_artifacts(load_release_tooling_contract())
+    ]
+    component_rows = [
+        {
+            "component_id": item.component_id,
+            "display_name": item.display_name,
+            "distribution": item.distribution,
+            "version": item.version,
+            "repository": item.repository,
+            "tag": item.tag,
+            "wheel": item.wheel,
+            "sha256": item.sha256,
+            "url": item.url,
+        }
+        for item in required_component_artifacts(manifest, plan)
+    ]
     return {
-        "required_artifacts": [
-            {
-                "component_id": item.component_id,
-                "display_name": item.display_name,
-                "distribution": item.distribution,
-                "version": item.version,
-                "repository": item.repository,
-                "tag": item.tag,
-                "wheel": item.wheel,
-                "sha256": item.sha256,
-                "url": item.url,
-            }
-            for item in required_component_artifacts(manifest, plan)
-        ],
+        "required_artifacts": [*tooling_rows, *component_rows],
         "constraints": pds_constraints_text(manifest).splitlines(),
     }
 
@@ -236,6 +265,32 @@ def _installed_payload(
         snapshot,
         selected_component_ids=tuple(args.component),
     )
+
+    installed_by_name = {
+        normalize_distribution_name(item.distribution): item
+        for item in snapshot.installed_distributions
+    }
+    verified_tooling: list[dict[str, str]] = []
+    for tool in load_release_tooling_contract().tools:
+        observed = installed_by_name.get(normalize_distribution_name(tool.distribution))
+        if observed is None:
+            raise BootstrapInstallationError(
+                "qualified release tooling is missing: "
+                f"{tool.distribution} {tool.version}"
+            )
+        if observed.version != tool.version or observed.editable:
+            raise BootstrapInstallationError(
+                f"qualified release tooling mismatch for {tool.distribution}: "
+                f"expected {tool.version}, observed {observed.version}"
+            )
+        verified_tooling.append(
+            {
+                "tool_id": tool.tool_id,
+                "distribution": tool.distribution,
+                "version": tool.version,
+            }
+        )
+
     marker_path: str | None = None
     if finalize_marker:
         marker = EnvironmentMarkerIdentity(
@@ -255,6 +310,7 @@ def _installed_payload(
             }
             for item in verified
         ],
+        "verified_tooling": verified_tooling,
         "marker_path": marker_path,
     }
 
@@ -344,11 +400,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
             return 0
 
-        verified = verify_required_artifacts(
+        verified_tooling = verify_required_tooling_artifacts(
+            load_release_tooling_contract(),
+            args.artifact_dir,
+        )
+        verified_components = verify_required_artifacts(
             manifest,
             plan,
             args.artifact_dir,
         )
+        verified = (*verified_tooling, *verified_components)
         constraints = write_pds_constraints(
             args.constraints_path,
             manifest,
@@ -372,6 +433,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         BootstrapInstallationError,
         CompatibilityManifestError,
         EnvironmentInspectionError,
+        ReleaseToolingError,
         OSError,
     ) as error:
         print(f"Bootstrap planning failed: {error}")

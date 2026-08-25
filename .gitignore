@@ -41,3 +41,14 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# Paper Data Suite sensitive/generated runtime residue
+# These patterns reduce accidental commits; they are not a substitute for
+# keeping real classroom workspaces and backups outside the source repository.
+pds-workspace-backup-*/
+.pds-workspace-backup-*.incomplete-*/
+.*.pds-restore.incomplete-*/
+local_outputs/
+scans_inbox/
+classes/
+*.log

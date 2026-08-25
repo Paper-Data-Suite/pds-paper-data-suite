@@ -219,15 +219,15 @@ def _hash_payload_file(
         before = path.lstat()
     except OSError as error:
         raise WorkspaceBackupVerificationError(
-            f"Backup payload file cannot be inspected: {expected.path}"
+            "A backup payload file cannot be inspected."
         ) from error
     if stat.S_ISLNK(before.st_mode) or _redirecting_reparse(before):
         raise WorkspaceBackupVerificationError(
-            f"Backup payload contains linked filesystem entry: {expected.path}"
+            "Backup payload contains a linked filesystem entry."
         )
     if not stat.S_ISREG(before.st_mode):
         raise WorkspaceBackupVerificationError(
-            f"Backup payload entry is not an ordinary file: {expected.path}"
+            "Backup payload contains a non-ordinary file entry."
         )
 
     digest = hashlib.sha256()
@@ -237,7 +237,7 @@ def _hash_payload_file(
             opened = os.fstat(stream.fileno())
             if not stat.S_ISREG(opened.st_mode):
                 raise WorkspaceBackupVerificationError(
-                    f"Backup payload file changed type while opening: {expected.path}"
+                    "A backup payload file changed type while opening."
                 )
             while True:
                 chunk = stream.read(chunk_size)
@@ -249,26 +249,26 @@ def _hash_payload_file(
         raise
     except OSError as error:
         raise WorkspaceBackupVerificationError(
-            f"Backup payload file cannot be read: {expected.path}"
+            "A backup payload file cannot be read."
         ) from error
 
     try:
         after = path.lstat()
     except OSError as error:
         raise WorkspaceBackupVerificationError(
-            f"Backup payload file changed while being verified: {expected.path}"
+            "A backup payload file changed while being verified."
         ) from error
     if stat.S_ISLNK(after.st_mode) or _redirecting_reparse(after):
         raise WorkspaceBackupVerificationError(
-            f"Backup payload file changed type while being verified: {expected.path}"
+            "A backup payload file changed type while being verified."
         )
     if not stat.S_ISREG(after.st_mode):
         raise WorkspaceBackupVerificationError(
-            f"Backup payload file changed type while being verified: {expected.path}"
+            "A backup payload file changed type while being verified."
         )
     if total != before.st_size or total != after.st_size:
         raise WorkspaceBackupVerificationError(
-            f"Backup payload file changed size while being verified: {expected.path}"
+            "A backup payload file changed size while being verified."
         )
     return BackupFileEntry(
         path=expected.path,
@@ -286,7 +286,9 @@ def _verify_inventory(
     try:
         inventory = inventory_workspace(payload_root)
     except WorkspaceBackupError as error:
-        raise WorkspaceBackupVerificationError(str(error)) from error
+        raise WorkspaceBackupVerificationError(
+            "Backup payload inventory could not be read safely."
+        ) from error
 
     expected_directories = manifest.directories
     observed_directories = inventory.directories
@@ -314,13 +316,15 @@ def _verify_inventory(
         )
         if actual != expected:
             raise WorkspaceBackupVerificationError(
-                f"Backup payload SHA-256 mismatch: {expected.path}"
+                "Backup payload SHA-256 mismatch."
             )
 
     try:
         final_inventory = inventory_workspace(payload_root)
     except WorkspaceBackupError as error:
-        raise WorkspaceBackupVerificationError(str(error)) from error
+        raise WorkspaceBackupVerificationError(
+            "Backup payload changed or became unreadable during verification."
+        ) from error
     if final_inventory != inventory:
         raise WorkspaceBackupVerificationError(
             "Backup payload changed while verification was running."

@@ -1460,6 +1460,11 @@ def test_collect_doctor_diagnostics_combines_supported_surfaces(
     )
     monkeypatch.setattr(
         doctor,
+        "collect_release_tooling_diagnostics",
+        lambda: report("tooling", "Release tooling"),
+    )
+    monkeypatch.setattr(
+        doctor,
         "collect_environment_dependency_diagnostics",
         lambda active: report("environment", "Suite"),
     )
@@ -1489,6 +1494,7 @@ def test_collect_doctor_diagnostics_combines_supported_surfaces(
     combined = collect_doctor_diagnostics(workspace=Path("teacher-workspace"))
     assert tuple(check.code for check in combined.checks) == (
         "runtime",
+        "tooling",
         "environment",
         "entry",
         "workspace",

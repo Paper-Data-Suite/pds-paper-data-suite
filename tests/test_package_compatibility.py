@@ -6,34 +6,29 @@ from pathlib import Path
 
 import pytest
 
-from scripts.check_package import PackageValidationError, validate_wheel
+from scripts.check_package import (
+    REQUIRED_PACKAGE_FILES,
+    PackageValidationError,
+    validate_wheel,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = (
     ROOT / "paper_data_suite" / "data" / "release_compatibility_v1.json"
 )
+RELEASE_TOOLING_PATH = (
+    ROOT / "paper_data_suite" / "data" / "release_tooling_v1.json"
+)
+LICENSE_PATH = ROOT / "LICENSE"
 
-_PACKAGE_FILES = (
-    "paper_data_suite/__init__.py",
-    "paper_data_suite/__main__.py",
-    "paper_data_suite/_version.py",
-    "paper_data_suite/application_launching.py",
-    "paper_data_suite/applications.py",
-    "paper_data_suite/artifact_verification.py",
-    "paper_data_suite/bootstrap.py",
-    "paper_data_suite/bootstrap_artifacts.py",
-    "paper_data_suite/bootstrap_cli.py",
-    "paper_data_suite/bootstrap_installation.py",
-    "paper_data_suite/cli.py",
-    "paper_data_suite/compatibility.py",
-    "paper_data_suite/component_inspection.py",
-    "paper_data_suite/environment_inspection.py",
-    "paper_data_suite/settings.py",
-    "paper_data_suite/settings_cli.py",
-    "paper_data_suite/workspace_setup.py",
-    "paper_data_suite/workspace_cli.py",
-    "paper_data_suite/data/__init__.py",
-    "paper_data_suite/py.typed",
+_STRUCTURED_PACKAGE_FILES = frozenset(
+    {
+        "paper_data_suite/data/release_compatibility_v1.json",
+        "paper_data_suite/data/release_tooling_v1.json",
+    }
+)
+_PACKAGE_FILES = tuple(
+    sorted(REQUIRED_PACKAGE_FILES - _STRUCTURED_PACKAGE_FILES)
 )
 
 
@@ -55,6 +50,8 @@ def _build_wheel(
             "Version: 0.1.0.dev0",
             "Requires-Python: >=3.11",
             "Requires-Dist: pds-core<0.7,>=0.6.3",
+            "License-Expression: MIT",
+            "License-File: LICENSE",
             "",
         )
     )
@@ -75,6 +72,21 @@ def _build_wheel(
                 "paper_data_suite/data/release_compatibility_v1.json",
                 json.dumps(manifest, sort_keys=True),
             )
+        if (
+            omitted_package_file
+            != "paper_data_suite/data/release_tooling_v1.json"
+        ):
+            wheel.writestr(
+                "paper_data_suite/data/release_tooling_v1.json",
+                RELEASE_TOOLING_PATH.read_text(encoding="utf-8"),
+            )
+        wheel.writestr(
+            (
+                "paper_data_suite-0.1.0.dev0.dist-info/"
+                "licenses/LICENSE"
+            ),
+            LICENSE_PATH.read_bytes(),
+        )
         wheel.writestr(
             "paper_data_suite-0.1.0.dev0.dist-info/METADATA",
             metadata,
@@ -114,6 +126,22 @@ def test_package_validator_rejects_manifest_version_drift(
     with pytest.raises(
         PackageValidationError,
         match="manifest suite version",
+    ):
+        validate_wheel(wheel)
+
+
+def test_package_validator_requires_release_tooling_contract(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        omitted_package_file="paper_data_suite/data/release_tooling_v1.json",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="missing required package files",
     ):
         validate_wheel(wheel)
 

@@ -202,3 +202,17 @@ def test_verify_rejects_invalid_chunk_size(tmp_path: Path) -> None:
     backup_root, _manifest = _write_backup(tmp_path)
     with pytest.raises(ValueError, match="greater than zero"):
         verify_workspace_backup(backup_root, chunk_size=0)
+
+def test_verify_corruption_error_does_not_echo_payload_filename(
+    tmp_path: Path,
+) -> None:
+    backup_root, _manifest = _write_backup(tmp_path)
+    payload = backup_root / "workspace" / "unicodé.txt"
+    payload.write_bytes(b"HELLO")
+
+    with pytest.raises(WorkspaceBackupVerificationError) as captured:
+        verify_workspace_backup(backup_root)
+
+    message = str(captured.value)
+    assert "SHA-256 mismatch" in message
+    assert "unicodé.txt" not in message

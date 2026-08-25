@@ -19,10 +19,15 @@ from typing import Final, cast
 from paper_data_suite.artifact_verification import (
     ArtifactVerificationError,
     verify_artifact_directory,
+    verify_release_tool_wheel,
 )
 from paper_data_suite.compatibility import (
     CompatibilityManifestError,
     load_release_compatibility_manifest,
+)
+from paper_data_suite.release_tooling import (
+    ReleaseToolingError,
+    load_release_tooling_contract,
 )
 
 
@@ -712,15 +717,56 @@ def _assert_configured_doctor(output: str) -> None:
         )
 
 
+def _qualified_release_tool_wheel(path: Path) -> Path:
+    resolved = path.resolve()
+    if not resolved.is_file():
+        raise CombinedSuiteSmokeError(
+            f"Release-tool wheel does not exist: {resolved}"
+        )
+    try:
+        contract = load_release_tooling_contract()
+        if len(contract.tools) != 1:
+            raise CombinedSuiteSmokeError(
+                "Release-tooling contract must declare exactly one tool."
+            )
+        tool = contract.tools[0]
+        if tool.distribution != "pip":
+            raise CombinedSuiteSmokeError(
+                "Release-tooling contract does not qualify pip."
+            )
+        verify_release_tool_wheel(tool, resolved)
+    except (ArtifactVerificationError, ReleaseToolingError) as error:
+        raise CombinedSuiteSmokeError(
+            f"Release-tool wheel failed exact authentication: {error}"
+        ) from error
+    return resolved
+
+
 def _install_exact_composition(
     python: Path,
     suite_wheel: Path,
     core_wheel: Path,
     application_wheels: Sequence[Path],
+    release_tool_wheel: Path,
     *,
     cwd: Path,
     env: Mapping[str, str],
 ) -> None:
+    _run(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--no-deps",
+            "--no-index",
+            "--force-reinstall",
+            str(release_tool_wheel),
+        ],
+        cwd=cwd,
+        env=env,
+        timeout=300.0,
+    )
     _run(
         [
             str(python),
@@ -743,7 +789,11 @@ def _install_exact_composition(
     )
 
 
-def smoke_test(suite_wheel: Path, artifact_dir: Path) -> None:
+def smoke_test(
+    suite_wheel: Path,
+    artifact_dir: Path,
+    release_tool_wheel: Path,
+) -> None:
     """Run one continuous installed-suite acceptance through restore."""
     suite_wheel = suite_wheel.resolve()
     artifact_dir = artifact_dir.resolve()
@@ -753,6 +803,7 @@ def smoke_test(suite_wheel: Path, artifact_dir: Path) -> None:
         raise CombinedSuiteSmokeError(
             f"Artifact directory does not exist: {artifact_dir}"
         )
+    release_tool_wheel = _qualified_release_tool_wheel(release_tool_wheel)
 
     source_package = Path(__file__).resolve().parents[1] / "paper_data_suite"
     _assert_no_sibling_private_imports(source_package)
@@ -800,6 +851,7 @@ def smoke_test(suite_wheel: Path, artifact_dir: Path) -> None:
             suite_wheel,
             core_wheel,
             application_wheels,
+            release_tool_wheel,
             cwd=run_directory,
             env=install_env,
         )
@@ -1236,13 +1288,23 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="directory containing the exact release wheels declared by the manifest",
     )
+    parser.add_argument(
+        "--release-tool-wheel",
+        required=True,
+        type=Path,
+        help="exact authenticated release-tooling wheel (pip)",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
-        smoke_test(args.suite_wheel, args.artifact_dir)
+        smoke_test(
+            args.suite_wheel,
+            args.artifact_dir,
+            args.release_tool_wheel,
+        )
     except CombinedSuiteSmokeError as error:
         print(f"Combined installed-suite acceptance failed: {error}", file=sys.stderr)
         return 1

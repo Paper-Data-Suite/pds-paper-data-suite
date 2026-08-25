@@ -7,6 +7,8 @@ Core- or module-owned records.
 
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -673,15 +675,14 @@ def _manifest_relative(root: Path, path: Path) -> str:
         relative = path.relative_to(root)
     except ValueError as error:
         raise WorkspaceBackupSourceError(
-            f"Workspace entry escaped the source root: {path}"
+            "Workspace entry escaped the source root."
         ) from error
     value = "/".join(relative.parts)
     try:
         return _validate_relative_manifest_path(value, "workspace entry path")
     except WorkspaceBackupManifestError as error:
         raise WorkspaceBackupUnsupportedEntryError(
-            "Workspace backup path is not portable in manifest v1: "
-            f"{value!r}"
+            "Workspace backup path is not portable in manifest v1."
         ) from error
 
 
@@ -713,8 +714,7 @@ def inventory_workspace(workspace_root: Path) -> WorkspaceBackupInventory:
                 entries = sorted(tuple(scan), key=lambda item: item.name)
         except OSError as error:
             raise WorkspaceBackupSourceError(
-                f"Could not enumerate workspace directory: "
-                f"{_display_relative(workspace_root, directory)}"
+                "Could not enumerate a workspace directory."
             ) from error
 
         for entry in entries:
@@ -725,7 +725,7 @@ def inventory_workspace(workspace_root: Path) -> WorkspaceBackupInventory:
                 is_symlink = entry.is_symlink()
             except OSError as error:
                 raise WorkspaceBackupSourceError(
-                    f"Could not inspect workspace entry: {relative}"
+                    "Could not inspect a workspace entry."
                 ) from error
             if (
                 is_symlink
@@ -733,8 +733,7 @@ def inventory_workspace(workspace_root: Path) -> WorkspaceBackupInventory:
                 or _redirecting_reparse(status)
             ):
                 raise WorkspaceBackupUnsupportedEntryError(
-                    "Workspace backup does not follow linked filesystem entry: "
-                    f"{relative}"
+                    "Workspace backup does not follow linked filesystem entries."
                 )
             if stat.S_ISDIR(status.st_mode):
                 directories.append(relative)
@@ -744,8 +743,7 @@ def inventory_workspace(workspace_root: Path) -> WorkspaceBackupInventory:
                 files.append(BackupSourceFile(path=relative, size=status.st_size))
                 continue
             raise WorkspaceBackupUnsupportedEntryError(
-                "Workspace backup does not support special filesystem entry: "
-                f"{relative}"
+                "Workspace backup does not support special filesystem entries."
             )
 
     walk(workspace_root)
@@ -909,26 +907,26 @@ def _regular_file_status(path: Path, *, relative: str, area: str) -> os.stat_res
     except OSError as error:
         if area == "source":
             raise WorkspaceBackupSourceError(
-                f"Could not inspect source backup file: {relative}"
+                "Could not inspect a source backup file."
             ) from error
         raise WorkspaceBackupVerificationError(
-            f"Could not inspect staged backup file: {relative}"
+            "Could not inspect a staged backup file."
         ) from error
     if stat.S_ISLNK(status.st_mode) or _redirecting_reparse(status):
         if area == "source":
             raise WorkspaceBackupUnsupportedEntryError(
-                f"Backup source contains linked filesystem entry: {relative}"
+                "Backup source contains a linked filesystem entry."
             )
         raise WorkspaceBackupVerificationError(
-            f"Backup staged contains linked filesystem entry: {relative}"
+            "Backup staging contains a linked filesystem entry."
         )
     if not stat.S_ISREG(status.st_mode):
         if area == "source":
             raise WorkspaceBackupUnsupportedEntryError(
-                f"Backup source contains non-regular file entry: {relative}"
+                "Backup source contains a non-regular file entry."
             )
         raise WorkspaceBackupVerificationError(
-            f"Backup staged contains non-regular file entry: {relative}"
+            "Backup staging contains a non-regular file entry."
         )
     return status
 
@@ -950,7 +948,7 @@ def _hash_file(
             opened = os.fstat(stream.fileno())
             if not stat.S_ISREG(opened.st_mode):
                 raise WorkspaceBackupVerificationError(
-                    f"Backup {area} file changed type while opening: {relative}"
+                    f"Backup {area} file changed type while opening."
                 )
             while True:
                 chunk = stream.read(chunk_size)
@@ -963,19 +961,19 @@ def _hash_file(
     except OSError as error:
         if area == "source":
             raise WorkspaceBackupSourceError(
-                f"Could not read source backup file: {relative}"
+                "Could not read a source backup file."
             ) from error
         raise WorkspaceBackupVerificationError(
-            f"Could not read staged backup file: {relative}"
+            "Could not read a staged backup file."
         ) from error
     after = _regular_file_status(path, relative=relative, area=area)
     if total != before.st_size or total != after.st_size:
         if area == "source":
             raise WorkspaceBackupDriftError(
-                f"Backup source file changed while being read: {relative}"
+                "A backup source file changed while being read."
             )
         raise WorkspaceBackupVerificationError(
-            f"Backup staged file changed while being read: {relative}"
+            "A staged backup file changed while being read."
         )
     return BackupFileEntry(path=relative, size=total, sha256=digest.hexdigest())
 
@@ -997,7 +995,7 @@ def _copy_regular_file(
             opened = os.fstat(input_stream.fileno())
             if not stat.S_ISREG(opened.st_mode):
                 raise WorkspaceBackupUnsupportedEntryError(
-                    f"Workspace file changed type while opening: {relative}"
+                    "A workspace file changed type while opening."
                 )
             while True:
                 chunk = input_stream.read(chunk_size)
@@ -1012,16 +1010,16 @@ def _copy_regular_file(
         raise
     except FileExistsError as error:
         raise WorkspaceBackupCopyError(
-            f"Staging payload unexpectedly already contains file: {relative}"
+            "Staging payload unexpectedly already contains a file."
         ) from error
     except OSError as error:
         raise WorkspaceBackupCopyError(
-            f"Could not copy workspace file into backup staging: {relative}"
+            "Could not copy a workspace file into backup staging."
         ) from error
     after = _regular_file_status(source, relative=relative, area="source")
     if total != before.st_size or total != after.st_size:
         raise WorkspaceBackupDriftError(
-            f"Workspace file changed while being copied: {relative}"
+            "A workspace file changed while being copied."
         )
     return BackupFileEntry(path=relative, size=total, sha256=digest.hexdigest())
 
@@ -1160,8 +1158,7 @@ def _verify_source_matches_copied(
         )
         if current != copied_by_path.get(source_entry.path):
             raise WorkspaceBackupDriftError(
-                "The workspace changed while the backup was being created: "
-                f"{source_entry.path}"
+                "The workspace changed while the backup was being created."
             )
 
 
@@ -1187,7 +1184,7 @@ def _verify_staged_payload(
         )
         if actual != copied_by_path[expected.path]:
             raise WorkspaceBackupVerificationError(
-                f"Staged backup file failed integrity verification: {expected.path}"
+                "A staged backup file failed integrity verification."
             )
 
 
@@ -1231,14 +1228,111 @@ def _cleanup_staging(staging_root: Path) -> str | None:
     return None
 
 
+def _path_entry_exists(path: str | Path) -> bool:
+    try:
+        return os.path.lexists(os.fspath(path))
+    except (OSError, TypeError, ValueError) as error:
+        raise WorkspaceBackupDestinationError(
+            "Could not inspect backup destination existence."
+        ) from error
+
+
+def _raise_rename_error(error_code: int, final_root: Path) -> None:
+    if error_code in (errno.EEXIST, errno.ENOTEMPTY):
+        raise FileExistsError(
+            error_code,
+            os.strerror(error_code),
+            os.fspath(final_root),
+        )
+    raise OSError(
+        error_code,
+        os.strerror(error_code),
+        os.fspath(final_root),
+    )
+
+
+def _try_renameat2_no_replace(staging_root: Path, final_root: Path) -> bool:
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        function = getattr(libc, "renameat2")
+    except (AttributeError, OSError):
+        return False
+
+    function.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    function.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = function(
+        -100,
+        os.fsencode(staging_root),
+        -100,
+        os.fsencode(final_root),
+        1,
+    )
+    if result != 0:
+        _raise_rename_error(ctypes.get_errno(), final_root)
+    return True
+
+
+def _try_renamex_no_replace(staging_root: Path, final_root: Path) -> bool:
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        function = getattr(libc, "renamex_np")
+    except (AttributeError, OSError):
+        return False
+
+    function.argtypes = (
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    function.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = function(
+        os.fsencode(staging_root),
+        os.fsencode(final_root),
+        0x00000004,
+    )
+    if result != 0:
+        _raise_rename_error(ctypes.get_errno(), final_root)
+    return True
+
+
+def _platform_name() -> str:
+    """Return the current OS family through a module-local test seam."""
+    return os.name
+
+
+def _rename_no_replace(staging_root: Path, final_root: Path) -> None:
+    platform_name = _platform_name()
+    if platform_name == "nt":
+        os.rename(staging_root, final_root)
+        return
+    if platform_name == "posix":
+        if _try_renameat2_no_replace(staging_root, final_root):
+            return
+        if _try_renamex_no_replace(staging_root, final_root):
+            return
+    raise OSError(
+        errno.ENOTSUP,
+        "No supported non-overwriting directory rename primitive is available.",
+        os.fspath(final_root),
+    )
+
+
 def _publish_staging(staging_root: Path, final_root: Path) -> None:
-    """Publish a verified staging directory without intentionally replacing state."""
-    if final_root.exists():
+    """Publish verified staging with an atomic no-replace primitive."""
+    if _path_entry_exists(final_root):
         raise WorkspaceBackupCollisionError(
             f"Backup already exists and will not be overwritten: {final_root}"
         )
     try:
-        os.rename(staging_root, final_root)
+        _rename_no_replace(staging_root, final_root)
     except FileExistsError as error:
         raise WorkspaceBackupCollisionError(
             f"Backup already exists and will not be overwritten: {final_root}"

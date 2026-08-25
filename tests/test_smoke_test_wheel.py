@@ -14,15 +14,22 @@ def test_main_invokes_smoke_test_with_cli_paths(
 ) -> None:
     suite = tmp_path / "suite.whl"
     core = tmp_path / "core.whl"
-    observed: list[tuple[Path, Path]] = []
+    release_tool = tmp_path / "pip.whl"
+    observed: list[tuple[Path, Path, Path]] = []
 
-    def fake_smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
-        observed.append((suite_wheel, core_wheel))
+    def fake_smoke_test(
+        suite_wheel: Path,
+        core_wheel: Path,
+        release_tool_wheel: Path,
+    ) -> None:
+        observed.append((suite_wheel, core_wheel, release_tool_wheel))
 
     monkeypatch.setattr(smoke_test_wheel, "smoke_test", fake_smoke_test)
 
-    assert smoke_test_wheel.main((str(suite), str(core))) == 0
-    assert observed == [(suite, core)]
+    assert smoke_test_wheel.main(
+        (str(suite), str(core), str(release_tool))
+    ) == 0
+    assert observed == [(suite, core, release_tool)]
     assert capsys.readouterr().out.strip() == "Smoke test passed."
 
 
@@ -33,14 +40,21 @@ def test_main_returns_failure_when_smoke_test_fails(
 ) -> None:
     suite = tmp_path / "suite.whl"
     core = tmp_path / "core.whl"
+    release_tool = tmp_path / "pip.whl"
 
-    def fail_smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
-        del suite_wheel, core_wheel
+    def fail_smoke_test(
+        suite_wheel: Path,
+        core_wheel: Path,
+        release_tool_wheel: Path,
+    ) -> None:
+        del suite_wheel, core_wheel, release_tool_wheel
         raise smoke_test_wheel.SmokeTestError("synthetic failure")
 
     monkeypatch.setattr(smoke_test_wheel, "smoke_test", fail_smoke_test)
 
-    assert smoke_test_wheel.main((str(suite), str(core))) == 1
+    assert smoke_test_wheel.main(
+        (str(suite), str(core), str(release_tool))
+    ) == 1
     assert "synthetic failure" in capsys.readouterr().err
 
 
@@ -49,6 +63,8 @@ def test_doctor_output_assertion_requires_core_v062_provider_sections() -> None:
         (
             "Paper Data Suite doctor",
             "Runtime",
+            "Release tooling",
+            "pip 26.2.1",
             "Suite",
             "Packages",
             "Dependencies",

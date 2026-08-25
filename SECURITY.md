@@ -2,13 +2,16 @@
 
 ## Project status
 
-`pds-paper-data-suite` is in pre-release development. There is currently no
-supported suite-shell release.
+`pds-paper-data-suite` is preparing its first public teacher-pilot release.
 
-The repository is intended to become a local-first orchestration layer for
-Paper Data Suite. Local-first operation does not remove the need for appropriate
-filesystem access controls, backups, retention practices, authorization, and
-compliance with applicable school, district, state, and federal requirements.
+The current source candidate remains `0.1.0.dev0`; no supported public
+`paper-data-suite` release exists until the v0.1.0 release audit is complete and
+the maintainer explicitly publishes the release.
+
+Paper Data Suite is local-first. Local-first operation does not remove the need
+for appropriate filesystem access controls, backups, retention practices,
+authorization, and compliance with applicable school, district, state, and
+federal requirements.
 
 ## Student data and privacy
 
@@ -34,14 +37,42 @@ this source repository.
 
 ## Reporting a concern
 
-Use GitHub Issues for non-sensitive security, privacy, integrity, or data-safety
-concerns.
+Use GitHub Issues only for non-sensitive security, privacy, integrity, or
+data-safety concerns.
 
 Do not include real student data, private school or district information,
-credentials, production workspace contents, or other sensitive material in a
-public issue. If sensitive details are required to investigate a concern,
-describe the problem publicly only at a non-sensitive level and request a
-private follow-up channel.
+credentials, production workspace contents, exploit details that should remain
+private, or other sensitive material in a public issue.
+
+Before v0.1.0 is published, GitHub Private Vulnerability Reporting must be
+enabled for this repository. Once enabled, use the repository's private
+**Report a vulnerability** workflow for sensitive vulnerability reports.
+
+If Private Vulnerability Reporting is unexpectedly unavailable, do not disclose
+sensitive details in a public issue. Open only a non-sensitive issue stating
+that a private security-reporting channel is needed.
+
+## Support policy
+
+Paper Data Suite v0.1.x is an early teacher-pilot series, not an LTS line.
+
+Once v0.1.0 is published:
+
+- only the latest released `0.1.x` version is supported;
+- `main` remains development-only and is not a supported release;
+- when a newer `0.1.x` release supersedes an older one, the older pilot release
+  becomes unsupported;
+- there is no guaranteed vulnerability-response SLA, maintenance window, or
+  backport period;
+- fixes may require upgrading to the latest pilot release.
+
+Until v0.1.0 is actually published, the supported-release table remains:
+
+| Version | Status |
+| --- | --- |
+| `main` | Development only |
+| `0.1.0.dev0` | Release candidate; not a supported release |
+| Released versions | None yet |
 
 ## Scope and ownership
 
@@ -52,15 +83,3 @@ the public services it composes.
 
 The normative ownership and integration contract is
 [`docs/architecture/suite-shell-boundaries.md`](docs/architecture/suite-shell-boundaries.md).
-
-## Supported versions
-
-There is no supported release yet.
-
-| Version | Status |
-| --- | --- |
-| `main` | Development only |
-| Released versions | None |
-
-Security and maintenance support policy for released suite versions will be
-defined before the first public release.

@@ -10,6 +10,7 @@ from paper_data_suite.artifact_verification import (
     ArtifactVerificationError,
     sha256_file,
     verify_component_wheel,
+    verify_release_tool_wheel,
 )
 from paper_data_suite.bootstrap import (
     BootstrapPlan,
@@ -19,6 +20,7 @@ from paper_data_suite.compatibility import (
     ComponentCompatibility,
     ReleaseCompatibilityManifest,
 )
+from paper_data_suite.release_tooling import ReleaseToolingContract
 
 
 class BootstrapArtifactError(RuntimeError):
@@ -49,6 +51,70 @@ class VerifiedArtifact:
     version: str
     path: str
     sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolingArtifactRequirement:
+    """One exact third-party release-tool wheel required by bootstrap."""
+
+    component_id: str
+    display_name: str
+    distribution: str
+    version: str
+    wheel: str
+    sha256: str
+    url: str
+
+
+def required_tooling_artifacts(
+    tooling: ReleaseToolingContract,
+) -> tuple[ToolingArtifactRequirement, ...]:
+    """Return every exact release-tool wheel required by this suite release."""
+    return tuple(
+        ToolingArtifactRequirement(
+            component_id=f"tooling:{tool.tool_id}",
+            display_name=tool.tool_id,
+            distribution=tool.distribution,
+            version=tool.version,
+            wheel=tool.wheel,
+            sha256=tool.sha256,
+            url=tool.url,
+        )
+        for tool in tooling.tools
+    )
+
+
+def verify_required_tooling_artifacts(
+    tooling: ReleaseToolingContract,
+    artifact_directory: Path,
+) -> tuple[VerifiedArtifact, ...]:
+    """Authenticate exact release-tool wheels before target mutation."""
+    directory = artifact_directory.expanduser().resolve()
+    if not directory.is_dir():
+        raise BootstrapArtifactError(
+            f"artifact directory does not exist: {directory}"
+        )
+
+    verified: list[VerifiedArtifact] = []
+    for tool in tooling.tools:
+        path = directory / tool.wheel
+        try:
+            verify_release_tool_wheel(tool, path)
+            digest = sha256_file(path)
+        except ArtifactVerificationError as error:
+            raise BootstrapArtifactError(
+                f"{tool.tool_id} release-tool verification failed: {error}"
+            ) from error
+        verified.append(
+            VerifiedArtifact(
+                component_id=f"tooling:{tool.tool_id}",
+                distribution=tool.distribution,
+                version=tool.version,
+                path=str(path.resolve()),
+                sha256=digest,
+            )
+        )
+    return tuple(verified)
 
 
 def component_release_url(component: ComponentCompatibility) -> str:

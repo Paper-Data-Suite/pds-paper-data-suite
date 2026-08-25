@@ -42,6 +42,10 @@ from paper_data_suite.environment_inspection import (
     EnvironmentInspectionError,
     parse_environment_marker,
 )
+from paper_data_suite.release_tooling import (
+    ReleaseToolingContract,
+    load_release_tooling_contract,
+)
 
 CommandLookup = Callable[[str], str | None]
 ManifestDigestLookup = Callable[[], str]
@@ -298,6 +302,64 @@ def collect_runtime_package_diagnostics(
         _component_package_check(component, version_lookup=version_lookup)
         for component in active_manifest.components
     )
+    return DoctorReport(tuple(checks))
+
+
+def collect_release_tooling_diagnostics(
+    tooling: ReleaseToolingContract | None = None,
+    *,
+    version_lookup: DistributionVersionLookup = metadata.version,
+) -> DoctorReport:
+    """Verify exact release-qualified packaging/runtime tooling."""
+    active_tooling = tooling or load_release_tooling_contract()
+    checks: list[DiagnosticCheck] = []
+    for tool in active_tooling.tools:
+        observed = _lookup_distribution_version(tool.distribution, version_lookup)
+        if observed is None:
+            checks.append(
+                DiagnosticCheck(
+                    section="Release tooling",
+                    code="tooling.missing",
+                    status=DiagnosticStatus.FAIL,
+                    summary=(
+                        f"Required release tooling {tool.distribution} "
+                        f"{tool.version} is not installed."
+                    ),
+                    remediation=(
+                        "Repair this managed environment through the verified suite "
+                        "bootstrap/update workflow, then rerun `pds doctor`."
+                    ),
+                )
+            )
+        elif observed != tool.version:
+            checks.append(
+                DiagnosticCheck(
+                    section="Release tooling",
+                    code="tooling.version_mismatch",
+                    status=DiagnosticStatus.FAIL,
+                    summary=(
+                        f"{tool.distribution} {observed} does not match the "
+                        f"suite-qualified tooling version {tool.version}."
+                    ),
+                    remediation=(
+                        "Repair this managed environment through the verified suite "
+                        "bootstrap/update workflow; do not rely on an unqualified "
+                        "package-installer version."
+                    ),
+                )
+            )
+        else:
+            checks.append(
+                DiagnosticCheck(
+                    section="Release tooling",
+                    code="tooling.version_match",
+                    status=DiagnosticStatus.PASS,
+                    summary=(
+                        f"{tool.distribution} {observed} matches the "
+                        "suite-qualified release-tooling contract."
+                    ),
+                )
+            )
     return DoctorReport(tuple(checks))
 
 
@@ -1661,6 +1723,7 @@ def collect_workspace_registry_diagnostics(
 
 _SECTION_ORDER: tuple[str, ...] = (
     "Runtime",
+    "Release tooling",
     "Suite",
     "Packages",
     "Dependencies",
@@ -2099,6 +2162,7 @@ def collect_doctor_diagnostics(
     manifest = load_release_compatibility_manifest()
     return combine_reports(
         collect_runtime_package_diagnostics(manifest),
+        collect_release_tooling_diagnostics(),
         collect_environment_dependency_diagnostics(manifest),
         collect_entry_point_core_diagnostics(manifest),
         collect_workspace_registry_diagnostics(manifest, workspace=workspace),

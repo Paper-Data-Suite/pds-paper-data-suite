@@ -91,16 +91,24 @@ def test_apply_contract_authenticates_before_target_creation() -> None:
 def test_apply_contract_installs_in_safe_pds_order() -> None:
     text = _SCRIPT.read_text(encoding="utf-8")
 
+    pip_index = text.index('"Install exact authenticated pip tooling"')
     core_index = text.index('"Install exact authenticated Core"')
     suite_index = text.index('"Install exact authenticated suite"')
     optional_index = text.index(
         '"Install exact authenticated $($PackagePlan.display_name)"'
     )
+    setuptools_remove_index = text.index(
+        '"Remove unneeded setuptools runtime tooling"'
+    )
     pip_check_index = text.index('"pip check"')
     finalize_index = text.index("'finalize-environment'")
 
-    assert core_index < suite_index < optional_index
-    assert optional_index < pip_check_index < finalize_index
+    assert pip_index < core_index < suite_index < optional_index
+    assert "'--force-reinstall'" in text
+    assert optional_index < setuptools_remove_index < pip_check_index < finalize_index
+    assert "'-m', 'pip', 'uninstall'" in text
+    assert "'--yes'" in text
+    assert "'setuptools'" in text
     assert "'--no-deps'" in text
     assert "'--no-index'" in text
     assert "'--constraint', $ConstraintsPath" in text
@@ -249,3 +257,16 @@ def test_success_output_includes_activation_and_direct_launch_guidance() -> None
     assert 'Write-Host "Activate:' in text
     assert "Scripts\\pds.exe" in text
     assert '"Launch: "' in text
+
+def test_release_tooling_is_authenticated_before_target_creation() -> None:
+    text = _SCRIPT.read_text(encoding="utf-8")
+
+    requirements_index = text.index("'artifact-requirements'")
+    verification_index = text.index("'verify-artifacts'")
+    create_target_index = text.index('"Create target environment"')
+    pip_install_index = text.index('"Install exact authenticated pip tooling"')
+
+    assert requirements_index < verification_index < create_target_index
+    assert create_target_index < pip_install_index
+    assert "files.pythonhosted.org" not in text
+    assert "pip-26.2.1-py3-none-any.whl" not in text

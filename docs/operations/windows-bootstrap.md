@@ -23,6 +23,9 @@ authenticated paper-data-suite wheel
 
 bundled manifest
   -> exact Core and optional PDS component wheel identities
+
+bundled release-tooling contract
+  -> exact qualified pip wheel identity
 ```
 
 The caller must provide both:
@@ -66,6 +69,8 @@ Plan mode is the default. A normal plan:
 - compares installed PDS distributions with exact suite-qualified versions;
 - acquires or reuses only component artifacts required by the plan;
 - authenticates those component wheels;
+- acquires and authenticates the exact qualified pip release-tool wheel from the
+  bundled `release_tooling_v1` contract;
 - creates a transient exact-version PDS constraints file; and
 - reports the result without mutating the target environment.
 
@@ -208,8 +213,9 @@ It does not use `/latest/`, mutable branches, package-index "newest" selection,
 mirrors, or nearest-version substitution for PDS-owned artifacts.
 
 A caller-supplied `-ArtifactDirectory` is read-only input. Required files must
-already have the exact declared filenames. Missing or mismatched artifacts fail;
-they are not silently overwritten or replaced.
+already have the exact declared filenames, including the qualified pip wheel.
+Missing or mismatched artifacts fail; they are not silently overwritten or
+replaced.
 
 Every required PDS component wheel is authenticated before it can be given to
 pip. Bootstrap verifies the exact filename, SHA-256, wheel readability,
@@ -235,14 +241,18 @@ does **not** claim that the complete Python environment is hash-pinned.
 A successful apply uses this order:
 
 1. create or validate the dedicated target virtual environment;
-2. install exact authenticated Core with no dependency resolution;
-3. install the exact authenticated suite wheel with no dependency resolution;
-4. install each selected missing optional PDS wheel from its exact local path
+2. use the interpreter-seeded pip only to install the already-authenticated local
+   `pip 26.2.1` wheel with `--no-deps --no-index --force-reinstall`;
+3. install exact authenticated Core with no dependency resolution;
+4. install the exact authenticated suite wheel with no dependency resolution;
+5. install each selected missing optional PDS wheel from its exact local path
    under the transient PDS constraints;
-5. run target-environment `python -m pip check`;
-6. verify exact installed PDS versions and target-local import roots from the
-   authenticated inspection environment; and
-7. atomically finalize the environment marker.
+6. remove `setuptools` from the managed runtime environment if the seed
+   interpreter's `venv` bundled it;
+7. run target-environment `python -m pip check`;
+8. verify exact installed PDS versions, target-local import roots, and exact
+   release-tooling identity from the authenticated inspection environment; and
+9. atomically finalize the environment marker.
 
 All target pip operations use:
 
@@ -252,6 +262,26 @@ All target pip operations use:
 
 Bootstrap does not use `pip install --upgrade`, does not automatically upgrade
 pip, and does not install development extras into the target.
+
+Some supported seed interpreters can create a new `venv` with `setuptools`
+already installed even though no suite-qualified PDS distribution declares it as
+a runtime dependency. After all package installation is complete, bootstrap
+removes that unnecessary seed tooling instead of carrying an unused packaging
+surface into the teacher runtime. The subsequent `pip check` is authoritative for
+declared dependency consistency: if any installed distribution unexpectedly
+requires `setuptools`, finalization fails rather than hiding the dependency.
+
+`pip` is different: bootstrap and `pds doctor` actively rely on it. The release
+therefore qualifies exactly `pip 26.2.1` through the bundled
+`release_tooling_v1` contract. That contract binds distribution, version,
+`Requires-Python`, `Requires-Dist`, wheel filename, SHA-256, and exact
+`files.pythonhosted.org` artifact URL. The tool wheel is downloaded or supplied
+locally and authenticated before target mutation. Environment finalization fails
+if the installed pip version is not exactly the qualified version.
+
+The interpreter-seeded pip is not trusted for ordinary network resolution before
+this replacement. Its only target-environment bootstrap use is an offline
+`--no-deps --no-index` installation of the already-authenticated pip wheel.
 
 ## External prerequisites
 

@@ -10,8 +10,13 @@ from paper_data_suite.artifact_verification import (
     ArtifactVerificationError,
     verify_artifact_directory,
     verify_component_wheel,
+    verify_release_tool_wheel,
 )
 from paper_data_suite.compatibility import CompatibilityManifestError
+from paper_data_suite.release_tooling import (
+    ReleaseToolingError,
+    load_release_tooling_contract,
+)
 
 __all__ = (
     "ArtifactVerificationError",
@@ -30,17 +35,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         verify_artifact_directory(args.artifact_dir)
+        tooling = load_release_tooling_contract()
+        for tool in tooling.tools:
+            verify_release_tool_wheel(
+                tool,
+                args.artifact_dir / tool.wheel,
+            )
     except (
         OSError,
         CompatibilityManifestError,
+        ReleaseToolingError,
         ArtifactVerificationError,
     ) as error:
-        print(f"Compatibility artifact verification failed: {error}")
+        print(f"Release artifact verification failed: {error}")
         return 1
 
     print(
-        "Compatibility artifacts passed: exact filenames, SHA-256 digests, "
-        "wheel metadata, Python requirements, and public entry points verified."
+        "Release artifacts passed: exact component/tool filenames, SHA-256 "
+        "digests, wheel metadata, Python requirements, and declared public "
+        "entry points verified."
     )
     return 0
 

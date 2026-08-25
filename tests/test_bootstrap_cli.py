@@ -34,6 +34,10 @@ def test_manifest_summary_is_machine_readable(capsys) -> None:
         "scoreform",
         "vitrine",
     ]
+    assert payload["release_tooling"] == [
+        {"tool_id": "pip", "distribution": "pip", "version": "26.2.1"}
+    ]
+    assert len(payload["release_tooling_sha256"]) == 64
 
 
 def test_plan_for_missing_environment_is_plan_only(
@@ -128,7 +132,7 @@ def test_artifact_requirements_are_machine_readable(
     payload = json.loads(capsys.readouterr().out)
     assert [
         item["component_id"] for item in payload["required_artifacts"]
-    ] == ["core", "vitrine"]
+    ] == ["tooling:pip", "core", "vitrine"]
     assert payload["constraints"] == [
         "paper-data-suite==0.1.0.dev0",
         "pds-concord==0.2.0",
@@ -137,10 +141,18 @@ def test_artifact_requirements_are_machine_readable(
         "quillan==0.9.0",
         "scoreform==0.10.0",
     ]
+    pip_requirement = payload["required_artifacts"][0]
+    assert pip_requirement["url"].startswith(
+        "https://files.pythonhosted.org/packages/"
+    )
+    assert pip_requirement["sha256"] == (
+        "71138adf1f4ca900cdb7d289c21b7494"
+        "329f2332b6d85f0e1c42108c0384ed3e"
+    )
     assert all(
         "/releases/download/" in item["url"]
         and "/latest/" not in item["url"]
-        for item in payload["required_artifacts"]
+        for item in payload["required_artifacts"][1:]
     )
 
 
@@ -169,7 +181,9 @@ def test_verify_artifacts_failure_does_not_write_constraints(
     )
 
     assert result == 4
-    assert "artifact verification failed" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Bootstrap artifact preparation failed" in output
+    assert "release-tool verification failed" in output
     assert not constraints.exists()
 
 
@@ -213,6 +227,7 @@ def _write_installed_target(
         manifest.suite.distribution,
         manifest.suite.version,
     )
+    _write_dist_info(site_packages, "pip", "26.2.1")
     (site_packages / "paper_data_suite").mkdir()
     for component in manifest.components:
         if component.required or (

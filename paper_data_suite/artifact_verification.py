@@ -17,6 +17,7 @@ from paper_data_suite.compatibility import (
     EntryPointExpectation,
     load_release_compatibility_manifest,
 )
+from paper_data_suite.release_tooling import QualifiedReleaseTool
 
 _ALLOWED_ENTRY_POINT_GROUPS = (
     "console_scripts",
@@ -199,6 +200,68 @@ def verify_component_wheel(
         raise ArtifactVerificationError(
             f"{label} entry-point metadata disagrees with manifest"
         )
+
+
+def verify_release_tool_wheel(
+    tool: QualifiedReleaseTool,
+    path: Path,
+) -> None:
+    """Verify one exact qualified release-tool wheel without executing it."""
+    wheel = path.resolve()
+    label = f"{tool.tool_id} release-tool wheel"
+
+    if wheel.name != tool.wheel:
+        raise ArtifactVerificationError(
+            f"{label} filename mismatch: expected {tool.wheel!r}, got {wheel.name!r}"
+        )
+    if not wheel.is_file():
+        raise ArtifactVerificationError(f"{label} is missing: {wheel}")
+
+    try:
+        actual_digest = verify_file_sha256(wheel, tool.sha256)
+    except ArtifactVerificationError as error:
+        raise ArtifactVerificationError(f"{label} {error}") from error
+
+    try:
+        with zipfile.ZipFile(wheel) as archive:
+            corrupt_member = archive.testzip()
+            if corrupt_member is not None:
+                raise ArtifactVerificationError(
+                    f"{label} contains corrupt member: {corrupt_member}"
+                )
+            names = tuple(archive.namelist())
+            metadata_members = tuple(
+                name for name in names if name.endswith(".dist-info/METADATA")
+            )
+            if len(metadata_members) != 1:
+                raise ArtifactVerificationError(
+                    f"{label} must contain exactly one METADATA file"
+                )
+            metadata = BytesParser(policy=policy.default).parsebytes(
+                archive.read(metadata_members[0])
+            )
+    except zipfile.BadZipFile as error:
+        raise ArtifactVerificationError(
+            f"{label} is not a readable wheel ZIP"
+        ) from error
+
+    if actual_digest != tool.sha256:
+        raise ArtifactVerificationError(f"{label} SHA-256 verification failed")
+    if _single_metadata_value(metadata, "Name", label) != tool.distribution:
+        raise ArtifactVerificationError(f"{label} distribution identity mismatch")
+    if _single_metadata_value(metadata, "Version", label) != tool.version:
+        raise ArtifactVerificationError(f"{label} version identity mismatch")
+    if (
+        _single_metadata_value(metadata, "Requires-Python", label)
+        != tool.requires_python
+    ):
+        raise ArtifactVerificationError(f"{label} Requires-Python mismatch")
+
+    observed_requires_dist = tuple(
+        str(item).strip() for item in metadata.get_all("Requires-Dist", [])
+    )
+    if observed_requires_dist != tool.requires_dist:
+        raise ArtifactVerificationError(f"{label} Requires-Dist mismatch")
 
 
 def verify_artifact_directory(artifact_dir: Path) -> None:
