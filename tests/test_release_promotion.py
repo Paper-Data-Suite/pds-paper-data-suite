@@ -43,7 +43,7 @@ def test_final_package_validator_requires_release_status() -> None:
     assert "compatibility manifest release status disagrees" in text
 
 
-def test_audit_closes_pre_promotion_gates_but_not_final_disposition() -> None:
+def test_audit_records_final_approval_with_post_promotion_evidence() -> None:
     text = (
         _ROOT / "docs" / "releases" / "v0.1.0-release-audit.md"
     ).read_text(encoding="utf-8")
@@ -51,8 +51,17 @@ def test_audit_closes_pre_promotion_gates_but_not_final_disposition() -> None:
     assert "RA-019" in text
     assert "RA-020" in text
     assert "Release identity gate — satisfied" in text
-    assert "all 19 jobs PASS" in text
-    assert "Not yet assigned." in text
+    assert "Post-promotion final qualification" in text
+    assert "632 passed, 15 expected platform/privilege skips" in text
+    assert "CI run #36" in text
+    assert "all\n19 jobs successful" in text
+    assert (
+        "021fcff5da281030c969679e433212e41c2d85eddf84c214ac53057b352e45db"
+        in text
+    )
+    assert "APPROVE WITH DOCUMENTED NON-BLOCKING LIMITATIONS" in text
+    assert "zero unresolved release blockers" in text
+    assert "Not yet assigned." not in text
 
 
 def test_historical_dev_pilot_evidence_is_preserved() -> None:

@@ -69,13 +69,15 @@ def test_governance_checklist_requires_rulesets_pvr_and_release_gate() -> None:
     assert "branch deletion" in text
 
 
-def test_candidate_release_notes_are_windows_first_and_not_yet_published() -> None:
+def test_audit_approved_release_notes_remain_unpublished() -> None:
     text = _RELEASE_NOTES.read_text(encoding="utf-8")
 
     assert "Windows-first teacher pilot" in text
     assert "macOS is not release-qualified" in text
     assert "Linux CI is software-compatibility evidence" in text
+    assert "APPROVE WITH DOCUMENTED NON-BLOCKING LIMITATIONS" in text
     assert (
-        "No tag or public release should be created until those remaining gates pass."
+        "No tag or public release should be created until the remaining\n"
+        "publication mechanics are complete."
         in text
     )
