@@ -599,7 +599,7 @@ jobs:
 
           $expected = @(
             "PDS Core 0.6.3: install_missing",
-            "Paper Data Suite 0.1.0.dev0: install_missing",
+            "Paper Data Suite 0.1.0: install_missing",
             "Concord 0.2.0: install_missing",
             "Quillan 0.9.0: install_missing",
             "ScoreForm 0.10.0: install_missing",
@@ -681,7 +681,7 @@ jobs:
           }
 
           $pdsVersion = (& $targetPds --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $pdsVersion -ne "pds 0.1.0.dev0") {
+          if ($LASTEXITCODE -ne 0 -or $pdsVersion -ne "pds 0.1.0") {
             throw "Unexpected installed pds version: $pdsVersion"
           }
 
@@ -712,7 +712,7 @@ jobs:
           if (
             $marker.record_type -ne "paper_data_suite_environment" -or
             $marker.contract_version -ne "1" -or
-            $marker.suite_version -ne "0.1.0.dev0"
+            $marker.suite_version -ne "0.1.0"
           ) {
             throw "Environment marker identity is invalid."
           }
@@ -730,7 +730,7 @@ jobs:
           target = Path(os.environ["PDS_BOOTSTRAP_TARGET"]).resolve()
           site_packages = (target / "Lib" / "site-packages").resolve()
           expected = {
-              "paper-data-suite": ("0.1.0.dev0", "paper_data_suite"),
+              "paper-data-suite": ("0.1.0", "paper_data_suite"),
               "pds-core": ("0.6.3", "pds_core"),
               "pds-concord": ("0.2.0", "concord"),
               "quillan": ("0.9.0", "quillan"),
@@ -805,7 +805,7 @@ jobs:
           $expected = @(
             "Environment action: keep_environment",
             "PDS Core 0.6.3: keep_exact",
-            "Paper Data Suite 0.1.0.dev0: keep_exact",
+            "Paper Data Suite 0.1.0: keep_exact",
             "Concord 0.2.0: keep_exact",
             "Quillan 0.9.0: keep_exact",
             "ScoreForm 0.10.0: keep_exact",

@@ -27,7 +27,7 @@ def test_release_gate_is_stable_aggregate_of_release_qualification_jobs() -> Non
     assert 'facts["result"] != "success"' in block
 
 
-def test_first_release_uses_alpha_classifier_without_promoting_identity() -> None:
+def test_first_release_uses_alpha_classifier_with_promoted_identity() -> None:
     text = _PYPROJECT.read_text(encoding="utf-8")
 
     assert "Development Status :: 3 - Alpha" in text
@@ -42,9 +42,9 @@ def test_first_release_uses_alpha_classifier_without_promoting_identity() -> Non
         / "data"
         / "release_compatibility_v1.json"
     ).read_text(encoding="utf-8")
-    assert '0.1.0.dev0' in version_text
-    assert '"version": "0.1.0.dev0"' in manifest_text
-    assert '"release_status": "development"' in manifest_text
+    assert '0.1.0' in version_text
+    assert '"version": "0.1.0"' in manifest_text
+    assert '"release_status": "release"' in manifest_text
 
 
 def test_security_policy_defines_latest_pilot_support_without_false_release_claim(
@@ -53,7 +53,8 @@ def test_security_policy_defines_latest_pilot_support_without_false_release_clai
 
     assert "only the latest released `0.1.x` version is supported" in text
     assert "`main` remains development-only" in text
-    assert "Private Vulnerability Reporting must be" in text
+    assert "Private Vulnerability Reporting" in text
+    assert "maintainer-confirmed" in text
     assert "no supported public" in text.lower()
 
 
@@ -74,4 +75,7 @@ def test_candidate_release_notes_are_windows_first_and_not_yet_published() -> No
     assert "Windows-first teacher pilot" in text
     assert "macOS is not release-qualified" in text
     assert "Linux CI is software-compatibility evidence" in text
-    assert "No tag or release should be published" in text
+    assert (
+        "No tag or public release should be created until those remaining gates pass."
+        in text
+    )

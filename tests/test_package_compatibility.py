@@ -37,17 +37,20 @@ def _build_wheel(
     *,
     include_manifest: bool = True,
     manifest_version: str | None = None,
+    manifest_release_status: str | None = None,
     omitted_package_file: str | None = None,
 ) -> None:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     if manifest_version is not None:
         manifest["suite"]["version"] = manifest_version
+    if manifest_release_status is not None:
+        manifest["suite"]["release_status"] = manifest_release_status
 
     metadata = "\n".join(
         (
             "Metadata-Version: 2.4",
             "Name: paper-data-suite",
-            "Version: 0.1.0.dev0",
+            "Version: 0.1.0",
             "Requires-Python: >=3.11",
             "Requires-Dist: pds-core<0.7,>=0.6.3",
             "License-Expression: MIT",
@@ -82,17 +85,17 @@ def _build_wheel(
             )
         wheel.writestr(
             (
-                "paper_data_suite-0.1.0.dev0.dist-info/"
+                "paper_data_suite-0.1.0.dist-info/"
                 "licenses/LICENSE"
             ),
             LICENSE_PATH.read_bytes(),
         )
         wheel.writestr(
-            "paper_data_suite-0.1.0.dev0.dist-info/METADATA",
+            "paper_data_suite-0.1.0.dist-info/METADATA",
             metadata,
         )
         wheel.writestr(
-            "paper_data_suite-0.1.0.dev0.dist-info/entry_points.txt",
+            "paper_data_suite-0.1.0.dist-info/entry_points.txt",
             entry_points,
         )
 
@@ -100,14 +103,14 @@ def _build_wheel(
 def test_package_validator_accepts_manifest_bearing_wheel(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(wheel)
 
     validate_wheel(wheel)
 
 
 def test_package_validator_rejects_missing_manifest(tmp_path: Path) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(wheel, include_manifest=False)
 
     with pytest.raises(
@@ -120,8 +123,8 @@ def test_package_validator_rejects_missing_manifest(tmp_path: Path) -> None:
 def test_package_validator_rejects_manifest_version_drift(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
-    _build_wheel(wheel, manifest_version="0.1.0")
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
+    _build_wheel(wheel, manifest_version="0.1.0.dev0")
 
     with pytest.raises(
         PackageValidationError,
@@ -130,10 +133,26 @@ def test_package_validator_rejects_manifest_version_drift(
         validate_wheel(wheel)
 
 
+def test_package_validator_rejects_development_release_status(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
+    _build_wheel(
+        wheel,
+        manifest_release_status="development",
+    )
+
+    with pytest.raises(
+        PackageValidationError,
+        match="release status",
+    ):
+        validate_wheel(wheel)
+
+
 def test_package_validator_requires_release_tooling_contract(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/data/release_tooling_v1.json",
@@ -149,7 +168,7 @@ def test_package_validator_requires_release_tooling_contract(
 def test_package_validator_requires_bootstrap_runtime_modules(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/bootstrap_installation.py",
@@ -166,7 +185,7 @@ def test_package_validator_requires_bootstrap_runtime_modules(
 def test_package_validator_requires_component_inspection_runtime_module(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/component_inspection.py",
@@ -182,7 +201,7 @@ def test_package_validator_requires_component_inspection_runtime_module(
 def test_package_validator_requires_applications_runtime_module(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/applications.py",
@@ -198,7 +217,7 @@ def test_package_validator_requires_applications_runtime_module(
 def test_package_validator_requires_application_launching_runtime_module(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/application_launching.py",
@@ -213,7 +232,7 @@ def test_package_validator_requires_application_launching_runtime_module(
 def test_package_validator_requires_workspace_setup_runtime_module(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/workspace_setup.py",
@@ -228,7 +247,7 @@ def test_package_validator_requires_workspace_setup_runtime_module(
 def test_package_validator_requires_workspace_cli_runtime_module(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(
         wheel,
         omitted_package_file="paper_data_suite/workspace_cli.py",
@@ -250,7 +269,7 @@ def test_package_validator_requires_workspace_cli_runtime_module(
 def test_package_validator_requires_settings_runtime_modules(
     tmp_path: Path, omitted_package_file: str
 ) -> None:
-    wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     _build_wheel(wheel, omitted_package_file=omitted_package_file)
 
     with pytest.raises(

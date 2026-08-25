@@ -4,9 +4,9 @@
 
 `pds-paper-data-suite` is preparing its first public teacher-pilot release.
 
-The current source candidate remains `0.1.0.dev0`; no supported public
-`paper-data-suite` release exists until the v0.1.0 release audit is complete and
-the maintainer explicitly publishes the release.
+The source identity is promoted to `0.1.0` for final release qualification;
+no supported public `paper-data-suite` release exists until the audit is
+complete and the maintainer explicitly publishes the release.
 
 Paper Data Suite is local-first. Local-first operation does not remove the need
 for appropriate filesystem access controls, backups, retention practices,
@@ -44,8 +44,8 @@ Do not include real student data, private school or district information,
 credentials, production workspace contents, exploit details that should remain
 private, or other sensitive material in a public issue.
 
-Before v0.1.0 is published, GitHub Private Vulnerability Reporting must be
-enabled for this repository. Once enabled, use the repository's private
+GitHub Private Vulnerability Reporting was maintainer-confirmed enabled before
+release identity promotion on August 25, 2026. Use the repository's private
 **Report a vulnerability** workflow for sensitive vulnerability reports.
 
 If Private Vulnerability Reporting is unexpectedly unavailable, do not disclose
@@ -71,7 +71,7 @@ Until v0.1.0 is actually published, the supported-release table remains:
 | Version | Status |
 | --- | --- |
 | `main` | Development only |
-| `0.1.0.dev0` | Release candidate; not a supported release |
+| `0.1.0` | Final release qualification; not supported until published |
 | Released versions | None yet |
 
 ## Scope and ownership

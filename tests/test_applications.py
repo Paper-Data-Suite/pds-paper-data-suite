@@ -75,7 +75,7 @@ def _manifest() -> ReleaseCompatibilityManifest:
         contract_version="1",
         suite=SuiteCompatibility(
             distribution="paper-data-suite",
-            version="0.1.0.dev0",
+            version="0.1.0",
             release_status="development",
         ),
         python=PythonCompatibility(
@@ -139,7 +139,7 @@ def _entry_point(
 
 def _base_versions(**overrides: str) -> dict[str, str]:
     result = {
-        "paper-data-suite": "0.1.0.dev0",
+        "paper-data-suite": "0.1.0",
         "pds-core": "0.6.3",
     }
     result.update(overrides)
@@ -271,7 +271,7 @@ def test_wrong_core_version_blocks_an_installed_exact_application() -> None:
         python_version=(3, 11, 9),
         version_lookup=_lookup(
             {
-                "paper-data-suite": "0.1.0.dev0",
+                "paper-data-suite": "0.1.0",
                 "pds-core": "0.6.1",
                 "pds-concord": "0.2.0",
             }

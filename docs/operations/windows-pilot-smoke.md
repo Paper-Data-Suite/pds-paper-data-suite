@@ -1,7 +1,7 @@
 # Windows v0.1.0 Pilot Smoke
 
-`run_windows_pilot_smoke.py` is the final synthetic Windows acceptance runner
-for the Paper Data Suite v0.1.0 release candidate.
+`run_windows_pilot_smoke.py` is the synthetic Windows acceptance runner
+for final Paper Data Suite v0.1.0 release qualification.
 
 It is intentionally separate from ordinary CI. The release claim is
 Windows-first, so the final candidate must also run on a real maintainer Windows
@@ -62,12 +62,13 @@ WINDOWS PILOT SMOKE: PASS
 
 ## Release boundary
 
-The runner requires the candidate identity `0.1.0.dev0`. It is run before
-promotion to `0.1.0`.
+The runner now requires the promoted identity `0.1.0` and is reused for
+post-promotion final Windows qualification. The historical evidence below
+records the earlier `0.1.0.dev0` pre-promotion run unchanged.
 
-A successful pilot smoke is necessary but not sufficient for publication.
-Repository governance, Private Vulnerability Reporting, final identity
-promotion, full CI, and final artifact hashing still remain separate gates.
+A successful Windows smoke is necessary but not sufficient for publication.
+Final artifact validation, the post-promotion `release-gate`, and explicit
+maintainer authorization remain separate gates.
 
 ## Real Windows pilot evidence
 

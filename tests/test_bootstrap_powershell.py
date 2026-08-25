@@ -161,7 +161,7 @@ def test_wrong_suite_hash_stops_before_python_or_target_mutation(
     if executable is None:
         pytest.skip(f"{host} is not available")
 
-    fake_wheel = tmp_path / "paper_data_suite-0.1.0.dev0-py3-none-any.whl"
+    fake_wheel = tmp_path / "paper_data_suite-0.1.0-py3-none-any.whl"
     fake_wheel.write_bytes(b"not an authenticated suite wheel")
     target = tmp_path / "must-not-exist"
 

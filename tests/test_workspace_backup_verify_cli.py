@@ -26,7 +26,7 @@ def _empty_backup(tmp_path: Path) -> Path:
         schema_version=BACKUP_MANIFEST_SCHEMA_VERSION,
         backup_id=root.name,
         created_at=FIXED_TIME,
-        suite_version="0.1.0.dev0",
+        suite_version="0.1.0",
         core_version="0.6.0",
         payload_root=BACKUP_PAYLOAD_ROOT,
         hash_algorithm=BACKUP_HASH_ALGORITHM,
@@ -59,7 +59,7 @@ def test_verify_cli_renders_bounded_success(
     assert "Workspace backup verified" in output.out
     assert f"Backup: {backup.resolve()}" in output.out
     assert "Backup ID:" in output.out
-    assert "Recorded suite version: 0.1.0.dev0" in output.out
+    assert "Recorded suite version: 0.1.0" in output.out
     assert "Recorded Core version: 0.6.0" in output.out
     assert "Directories: 0" in output.out
     assert "Files: 0" in output.out

@@ -6,14 +6,14 @@ from pathlib import Path
 
 from paper_data_suite import __version__
 
-EXPECTED_VERSION = "0.1.0.dev0"
+EXPECTED_VERSION = "0.1.0"
 
 
 def _repository_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def test_public_version_is_development_version() -> None:
+def test_public_version_is_release_version() -> None:
     assert __version__ == EXPECTED_VERSION
 
 
@@ -38,7 +38,7 @@ def test_production_version_literal_has_one_authoritative_source() -> None:
 
     for path in package_root.glob("*.py"):
         text = path.read_text(encoding="utf-8")
-        if re.search(r'["\']0\.1\.0\.dev0["\']', text):
+        if re.search(r'["\']0\.1\.0["\']', text):
             matches.append(path)
 
     assert matches == [package_root / "_version.py"]

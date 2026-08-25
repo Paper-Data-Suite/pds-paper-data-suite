@@ -94,7 +94,7 @@ def main() -> int:
         return 1
 
     print(
-        "Compatibility manifest passed: contract v1; suite 0.1.0.dev0; "
+        "Compatibility manifest passed: contract v1; suite 0.1.0; "
         "Python >=3.11,<3.15; five exact published PDS component releases."
     )
     return 0

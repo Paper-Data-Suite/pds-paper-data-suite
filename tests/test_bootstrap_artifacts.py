@@ -186,7 +186,7 @@ def test_constraints_cover_only_exact_pds_owned_distributions() -> None:
     lines = pds_constraints_text(manifest).splitlines()
 
     assert lines == [
-        "paper-data-suite==0.1.0.dev0",
+        "paper-data-suite==0.1.0",
         "pds-concord==0.2.0",
         "pds-core==0.6.3",
         "pds-vitrine==0.2.0",

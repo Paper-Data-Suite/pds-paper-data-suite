@@ -19,7 +19,7 @@ from paper_data_suite._version import __version__
 from paper_data_suite.compatibility import load_release_compatibility_manifest
 from paper_data_suite.release_tooling import load_release_tooling_contract
 
-EXPECTED_CANDIDATE_VERSION = "0.1.0.dev0"
+EXPECTED_RELEASE_VERSION = "0.1.0"
 
 
 class WindowsPilotSmokeError(RuntimeError):
@@ -214,7 +214,7 @@ def _managed_bootstrap_smoke(
     _run((str(python), "-m", "pip", "check"), cwd=run_dir, env=env)
 
     version = _run((str(pds), "--version"), cwd=run_dir, env=env).stdout.strip()
-    if version != f"pds {EXPECTED_CANDIDATE_VERSION}":
+    if version != f"pds {EXPECTED_RELEASE_VERSION}":
         raise WindowsPilotSmokeError(
             f"Unexpected managed suite version: {version!r}"
         )
@@ -322,9 +322,9 @@ def run_windows_pilot(repo: Path) -> dict[str, object]:
         raise WindowsPilotSmokeError(
             "The final v0.1.0 pilot smoke must run on Windows."
         )
-    if __version__ != EXPECTED_CANDIDATE_VERSION:
+    if __version__ != EXPECTED_RELEASE_VERSION:
         raise WindowsPilotSmokeError(
-            f"Pilot smoke requires {EXPECTED_CANDIDATE_VERSION}; "
+            f"Final release smoke requires {EXPECTED_RELEASE_VERSION}; "
             f"running {__version__}."
         )
 

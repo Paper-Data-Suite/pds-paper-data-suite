@@ -61,8 +61,9 @@ CI command discovery for Poppler/`pdftoppm` proves command availability only; it
 does not prove real printer, scanner, camera, or PDF-imaging hardware operation.
 
 The first release uses the `Development Status :: 3 - Alpha` package classifier.
-The release remains `0.1.0.dev0` until the final Windows pilot smoke,
-repository-governance verification, and release-promotion gates pass.
+The source identity is now promoted to `0.1.0` for final release qualification.
+Publication and tagging remain separate maintainer-authorized steps after the
+post-promotion artifact, Windows smoke, and `release-gate` checks pass.
 
 ## Verified Windows bootstrap
 

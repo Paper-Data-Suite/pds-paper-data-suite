@@ -15,7 +15,8 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 
 EXPECTED_DISTRIBUTION = "paper-data-suite"
-EXPECTED_VERSION = "0.1.0.dev0"
+EXPECTED_VERSION = "0.1.0"
+EXPECTED_RELEASE_STATUS = "release"
 EXPECTED_REQUIRES_PYTHON = ">=3.11"
 EXPECTED_CORE_RANGE = SpecifierSet(">=0.6.3,<0.7")
 EXPECTED_CONSOLE_TARGET = "paper_data_suite.cli:main"
@@ -279,6 +280,10 @@ def validate_wheel(path: Path) -> None:
         if suite.get("version") != EXPECTED_VERSION:
             raise PackageValidationError(
                 "Wheel compatibility manifest suite version disagrees."
+            )
+        if suite.get("release_status") != EXPECTED_RELEASE_STATUS:
+            raise PackageValidationError(
+                "Wheel compatibility manifest release status disagrees."
             )
         components = manifest.get("components")
         if not isinstance(components, list):

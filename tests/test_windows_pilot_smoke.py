@@ -59,8 +59,8 @@ def test_isolated_env_removes_workspace_and_pythonpath(
     assert env["LOCALAPPDATA"] == str(tmp_path / "AppData" / "Local")
 
 
-def test_candidate_version_remains_development_identity() -> None:
-    assert smoke.EXPECTED_CANDIDATE_VERSION == "0.1.0.dev0"
+def test_runner_targets_promoted_release_identity() -> None:
+    assert smoke.EXPECTED_RELEASE_VERSION == "0.1.0"
 
 
 def test_release_artifact_downloader_uses_bundled_contracts() -> None:

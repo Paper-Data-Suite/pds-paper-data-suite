@@ -134,7 +134,7 @@ def test_artifact_requirements_are_machine_readable(
         item["component_id"] for item in payload["required_artifacts"]
     ] == ["tooling:pip", "core", "vitrine"]
     assert payload["constraints"] == [
-        "paper-data-suite==0.1.0.dev0",
+        "paper-data-suite==0.1.0",
         "pds-concord==0.2.0",
         "pds-core==0.6.3",
         "pds-vitrine==0.2.0",

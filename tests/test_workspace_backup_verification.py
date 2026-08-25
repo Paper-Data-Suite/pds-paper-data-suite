@@ -48,7 +48,7 @@ def _write_backup(tmp_path: Path) -> tuple[Path, WorkspaceBackupManifest]:
         schema_version=BACKUP_MANIFEST_SCHEMA_VERSION,
         backup_id=backup_root.name,
         created_at=FIXED_TIME,
-        suite_version="0.1.0.dev0",
+        suite_version="0.1.0",
         core_version="0.6.0",
         payload_root=BACKUP_PAYLOAD_ROOT,
         hash_algorithm=BACKUP_HASH_ALGORITHM,

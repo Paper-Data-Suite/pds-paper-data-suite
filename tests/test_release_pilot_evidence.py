@@ -28,7 +28,7 @@ def test_pilot_hash_is_explicitly_not_final_release_digest() -> None:
         assert "final release artifact" in text.lower()
 
 
-def test_release_identity_still_waits_for_promotion() -> None:
+def test_release_identity_is_promoted_for_final_qualification() -> None:
     version = (_ROOT / "paper_data_suite" / "_version.py").read_text(
         encoding="utf-8"
     )
@@ -39,6 +39,6 @@ def test_release_identity_still_waits_for_promotion() -> None:
         / "release_compatibility_v1.json"
     ).read_text(encoding="utf-8")
 
-    assert "0.1.0.dev0" in version
-    assert '"version": "0.1.0.dev0"' in manifest
-    assert '"release_status": "development"' in manifest
+    assert "0.1.0" in version
+    assert '"version": "0.1.0"' in manifest
+    assert '"release_status": "release"' in manifest
