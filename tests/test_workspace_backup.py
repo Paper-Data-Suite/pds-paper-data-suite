@@ -160,7 +160,7 @@ def test_inventory_rejects_symlink_without_following_it(tmp_path: Path) -> None:
 
     with pytest.raises(
         WorkspaceBackupUnsupportedEntryError,
-        match="does not follow linked filesystem entry",
+        match="does not follow linked filesystem entries",
     ):
         inventory_workspace(root)
 

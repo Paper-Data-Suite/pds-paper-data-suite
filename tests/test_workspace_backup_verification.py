@@ -171,8 +171,15 @@ def test_verify_rejects_linked_payload_entry_without_following(tmp_path: Path) -
     except (OSError, NotImplementedError):
         pytest.skip("symlink creation unavailable")
 
-    with pytest.raises(WorkspaceBackupVerificationError, match="linked"):
+    with pytest.raises(
+        WorkspaceBackupVerificationError,
+        match="Backup payload inventory could not be read safely",
+    ) as exc_info:
         verify_workspace_backup(backup_root)
+
+    message = str(exc_info.value)
+    assert "zero.dat" not in message
+    assert "outside.txt" not in message
 
 
 def test_verify_rejects_backup_root_file(tmp_path: Path) -> None:
