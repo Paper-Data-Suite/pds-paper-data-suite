@@ -2,11 +2,11 @@
 
 ## Project status
 
-`pds-paper-data-suite` is preparing its first public teacher-pilot release.
+Paper Data Suite v0.1.0 is the first public teacher-pilot release line.
 
-The source identity is promoted to `0.1.0` for final release qualification;
-no supported public `paper-data-suite` release exists until the audit is
-complete and the maintainer explicitly publishes the release.
+The release source identity is `0.1.0`. Support applies to tagged/published
+release artifacts according to the policy below; `main` remains
+development-only and is not itself a supported release.
 
 Paper Data Suite is local-first. Local-first operation does not remove the need
 for appropriate filesystem access controls, backups, retention practices,
@@ -56,7 +56,7 @@ that a private security-reporting channel is needed.
 
 Paper Data Suite v0.1.x is an early teacher-pilot series, not an LTS line.
 
-Once v0.1.0 is published:
+For published v0.1.x releases:
 
 - only the latest released `0.1.x` version is supported;
 - `main` remains development-only and is not a supported release;
@@ -66,13 +66,13 @@ Once v0.1.0 is published:
   backport period;
 - fixes may require upgrading to the latest pilot release.
 
-Until v0.1.0 is actually published, the supported-release table remains:
+The v0.1.x support boundary is:
 
 | Version | Status |
 | --- | --- |
-| `main` | Development only |
-| `0.1.0` | Final release qualification; not supported until published |
-| Released versions | None yet |
+| `main` | Development only; never the supported release artifact |
+| `0.1.0` | First supported pilot release when tagged/published |
+| Newer `0.1.x` | Supersedes the prior `0.1.x` release when published |
 
 ## Scope and ownership
 

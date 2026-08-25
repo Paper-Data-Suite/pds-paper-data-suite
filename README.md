@@ -10,26 +10,25 @@ and the primary command is `pds`.
 
 ## Current status
 
-The suite shell is in pre-release development at `0.1.0.dev0`.
+This repository carries the release-qualified Paper Data Suite `0.1.0` source
+identity for the first Windows-first teacher pilot. Support applies to the
+tagged/published release artifact; `main` itself remains development-only.
 
-There is **no supported public v0.1.0 release yet**. The package foundation is
-installable. The shell now provides read-only environment diagnostics through
-`pds doctor`, suite-qualified application inventory through `pds modules`,
-verified out-of-process application launching through `pds launch <component-id>`,
+The v0.1.0 shell provides read-only environment diagnostics through `pds doctor`,
+suite-qualified application inventory through `pds modules`, verified
+out-of-process application launching through `pds launch <component-id>`,
 Core-backed workspace selection/validation through `pds workspace`, guided shared
-classroom setup through `pds setup`, whole-workspace backup creation,
-independent verification, and safe alternate-location restore through
-`pds backup create`, `pds backup verify`, and `pds backup restore`, plus a
-privacy-minimized per-user shell settings facility through `pds settings`.
-Additional teacher-facing workflows are added by later v0.1.0 issues.
+classroom setup through `pds setup`, whole-workspace backup creation, independent
+verification, and safe alternate-location restore through `pds backup create`,
+`pds backup verify`, and `pds backup restore`, plus a privacy-minimized per-user
+shell settings facility through `pds settings`.
 
 The package metadata requires Python 3.11 or newer and
 `pds-core>=0.6.3,<0.7`. Those broad package requirements do **not** by themselves
 qualify every matching interpreter or component release for the suite.
 
-The package now carries a versioned machine-readable compatibility declaration.
-For the current development build, suite qualification is explicit and
-fail-closed:
+The package carries a versioned machine-readable compatibility declaration.
+For v0.1.0, suite qualification is explicit and fail-closed:
 
 - suite-qualified Python: `>=3.11,<3.15`;
 - tested Python minors: 3.11, 3.12, 3.13, and 3.14;
@@ -51,7 +50,7 @@ The normative manifest contract is
 
 ## v0.1.0 release qualification scope
 
-The v0.1.0 candidate is a **Windows-first teacher pilot**. Automated suite CI
+The v0.1.0 release is a **Windows-first teacher pilot**. Automated suite CI
 also exercises Windows and Ubuntu on Python 3.11–3.14. Linux CI provides
 software-compatibility evidence but is not equivalent to the real Windows
 teacher-pilot workflow qualification. macOS is not release-qualified for
@@ -61,9 +60,10 @@ CI command discovery for Poppler/`pdftoppm` proves command availability only; it
 does not prove real printer, scanner, camera, or PDF-imaging hardware operation.
 
 The first release uses the `Development Status :: 3 - Alpha` package classifier.
-The source identity is now promoted to `0.1.0` for final release qualification.
-Publication and tagging remain separate maintainer-authorized steps after the
-post-promotion artifact, Windows smoke, and `release-gate` checks pass.
+The source identity is `0.1.0` and the release audit approved this release with
+documented non-blocking limitations. The `v0.1.0` tag and public artifacts must
+be created only from a source tree that has passed the required release gate,
+final Windows acceptance, and package validation.
 
 ## Verified Windows bootstrap
 

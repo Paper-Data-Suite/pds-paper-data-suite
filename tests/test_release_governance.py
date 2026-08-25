@@ -4,6 +4,7 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOW = _ROOT / ".github" / "workflows" / "ci.yml"
+_README = _ROOT / "README.md"
 _SECURITY = _ROOT / "SECURITY.md"
 _PYPROJECT = _ROOT / "pyproject.toml"
 _GOVERNANCE = _ROOT / "docs" / "releases" / "v0.1.0-governance.md"
@@ -47,15 +48,22 @@ def test_first_release_uses_alpha_classifier_with_promoted_identity() -> None:
     assert '"release_status": "release"' in manifest_text
 
 
-def test_security_policy_defines_latest_pilot_support_without_false_release_claim(
+def test_publication_metadata_defines_release_support_without_stale_candidate_claims(
 ) -> None:
-    text = _SECURITY.read_text(encoding="utf-8")
+    security = _SECURITY.read_text(encoding="utf-8")
+    readme = _README.read_text(encoding="utf-8")
 
-    assert "only the latest released `0.1.x` version is supported" in text
-    assert "`main` remains development-only" in text
-    assert "Private Vulnerability Reporting" in text
-    assert "maintainer-confirmed" in text
-    assert "no supported public" in text.lower()
+    assert "only the latest released `0.1.x` version is supported" in security
+    assert "`main` remains development-only" in security
+    assert "Private Vulnerability Reporting" in security
+    assert "maintainer-confirmed" in security
+    assert "tagged/published" in security
+    assert "no supported public" not in security.lower()
+
+    assert "release-qualified Paper Data Suite `0.1.0`" in readme
+    assert "Support applies to the\ntagged/published release artifact" in readme
+    assert "0.1.0.dev0" not in readme
+    assert "current development build" not in readme
 
 
 def test_governance_checklist_requires_rulesets_pvr_and_release_gate() -> None:
@@ -69,15 +77,14 @@ def test_governance_checklist_requires_rulesets_pvr_and_release_gate() -> None:
     assert "branch deletion" in text
 
 
-def test_audit_approved_release_notes_remain_unpublished() -> None:
+def test_audit_approved_release_notes_keep_a_durable_publication_boundary() -> None:
     text = _RELEASE_NOTES.read_text(encoding="utf-8")
 
     assert "Windows-first teacher pilot" in text
     assert "macOS is not release-qualified" in text
     assert "Linux CI is software-compatibility evidence" in text
     assert "APPROVE WITH DOCUMENTED NON-BLOCKING LIMITATIONS" in text
-    assert (
-        "No tag or public release should be created until the remaining\n"
-        "publication mechanics are complete."
-        in text
-    )
+    assert "Publication boundary:" in text
+    assert "release tag must identify the exact final release source tree" in text
+    assert "published wheel/sdist digests are intentionally recorded" in text
+    assert "Still required before publication:" not in text
