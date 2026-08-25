@@ -214,8 +214,10 @@ workflow never enables overwrite merely to finish setup.
 Core v0.6.3 currently advertises `ap_csp_fall_2023`, `njsls_clks_2020`,
 `njsls_csdt_2020`, and `njsls_ela_2023`. Each is independently selectable. The
 current guided workflow intentionally selects one starter pack per `pds setup`
-invocation; compatible additional packs can be added through later explicit
-invocations. Multi-pack transactional setup remains a usability question for #14.
+invocation; compatible additional packs can be added through later explicit,
+safe reruns. The v0.1.0 release audit classifies this as a documented
+non-blocking teacher-workload limitation. Multi-pack transactional setup remains
+deliberately outside the approved v0.1.0 scope.
 
 ## Academic Periods
 

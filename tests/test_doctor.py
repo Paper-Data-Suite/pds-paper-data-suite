@@ -91,7 +91,7 @@ def _manifest() -> ReleaseCompatibilityManifest:
         contract_version="1",
         suite=SuiteCompatibility(
             distribution="paper-data-suite",
-            version="0.1.0.dev0",
+            version="0.1.0",
             release_status="development",
         ),
         python=PythonCompatibility(
@@ -127,7 +127,7 @@ def _lookup(versions: dict[str, str]):
     return lookup
 
 
-def _marker_text(*, version: str = "0.1.0.dev0", digest: str = "a" * 64) -> str:
+def _marker_text(*, version: str = "0.1.0", digest: str = "a" * 64) -> str:
     return json.dumps(
         {
             "record_type": "paper_data_suite_environment",
@@ -244,7 +244,7 @@ def test_runtime_package_diagnostics_accept_exact_qualified_environment() -> Non
         python_executable=r"C:\PDS\.venv\Scripts\python.exe",
         version_lookup=_lookup(
             {
-                "paper-data-suite": "0.1.0.dev0",
+                "paper-data-suite": "0.1.0",
                 "pds-core": "0.6.3",
                 "pds-optional": "1.2.3",
             }
@@ -268,7 +268,7 @@ def test_runtime_package_diagnostics_fail_unqualified_python() -> None:
         python_executable="python",
         version_lookup=_lookup(
             {
-                "paper-data-suite": "0.1.0.dev0",
+                "paper-data-suite": "0.1.0",
                 "pds-core": "0.6.3",
             }
         ),
@@ -292,7 +292,7 @@ def test_runtime_package_diagnostics_fail_when_suite_metadata_missing() -> None:
     check = report.checks[1]
     assert check.code == "suite.distribution_missing"
     assert check.status is DiagnosticStatus.FAIL
-    assert "0.1.0.dev0" in (check.detail or "")
+    assert "0.1.0" in (check.detail or "")
 
 
 def test_runtime_package_diagnostics_fail_suite_version_mismatch() -> None:
@@ -312,7 +312,7 @@ def test_runtime_package_diagnostics_fail_suite_version_mismatch() -> None:
     assert check.code == "suite.version_mismatch"
     assert check.status is DiagnosticStatus.FAIL
     assert "9.9.9" in check.summary
-    assert "0.1.0.dev0" in check.summary
+    assert "0.1.0" in check.summary
 
 
 def test_runtime_package_diagnostics_fail_required_component_absence() -> None:
@@ -320,7 +320,7 @@ def test_runtime_package_diagnostics_fail_required_component_absence() -> None:
         _manifest(),
         python_version=(3, 11, 0),
         python_executable="python",
-        version_lookup=_lookup({"paper-data-suite": "0.1.0.dev0"}),
+        version_lookup=_lookup({"paper-data-suite": "0.1.0"}),
     )
 
     core = report.checks[2]
@@ -339,7 +339,7 @@ def test_runtime_package_diagnostics_skip_optional_component_absence() -> None:
         python_executable="python",
         version_lookup=_lookup(
             {
-                "paper-data-suite": "0.1.0.dev0",
+                "paper-data-suite": "0.1.0",
                 "pds-core": "0.6.3",
             }
         ),
@@ -359,7 +359,7 @@ def test_runtime_package_diagnostics_fail_component_version_mismatch() -> None:
         python_executable="python",
         version_lookup=_lookup(
             {
-                "paper-data-suite": "0.1.0.dev0",
+                "paper-data-suite": "0.1.0",
                 "pds-core": "0.6.1",
                 "pds-optional": "2.0.0",
             }
@@ -383,7 +383,7 @@ def test_runtime_package_diagnostics_do_not_import_optional_components() -> None
     def lookup(distribution: str) -> str:
         observed.append(distribution)
         if distribution == "paper-data-suite":
-            return "0.1.0.dev0"
+            return "0.1.0"
         if distribution == "pds-core":
             return "0.6.3"
         raise metadata.PackageNotFoundError(distribution)
@@ -1460,6 +1460,11 @@ def test_collect_doctor_diagnostics_combines_supported_surfaces(
     )
     monkeypatch.setattr(
         doctor,
+        "collect_release_tooling_diagnostics",
+        lambda: report("tooling", "Release tooling"),
+    )
+    monkeypatch.setattr(
+        doctor,
         "collect_environment_dependency_diagnostics",
         lambda active: report("environment", "Suite"),
     )
@@ -1489,6 +1494,7 @@ def test_collect_doctor_diagnostics_combines_supported_surfaces(
     combined = collect_doctor_diagnostics(workspace=Path("teacher-workspace"))
     assert tuple(check.code for check in combined.checks) == (
         "runtime",
+        "tooling",
         "environment",
         "entry",
         "workspace",

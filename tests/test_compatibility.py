@@ -52,8 +52,8 @@ def test_bundled_manifest_loads_and_matches_package_version() -> None:
     )
     assert manifest.contract_version == "1"
     assert manifest.suite.distribution == "paper-data-suite"
-    assert manifest.suite.version == __version__ == "0.1.0.dev0"
-    assert manifest.suite.release_status == "development"
+    assert manifest.suite.version == __version__ == "0.1.0"
+    assert manifest.suite.release_status == "release"
     assert manifest.python.specifier == ">=3.11,<3.15"
     assert manifest.python.tested_minors == (
         "3.11",
@@ -184,7 +184,7 @@ def test_duplicate_json_object_key_fails() -> None:
 
 def test_suite_version_mismatch_fails() -> None:
     data = _raw_manifest()
-    data["suite"]["version"] = "0.1.0"
+    data["suite"]["version"] = "0.1.0.dev0"
 
     with pytest.raises(
         CompatibilityManifestError,

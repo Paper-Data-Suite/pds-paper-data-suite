@@ -21,7 +21,7 @@ def _marker(**changes: object) -> str:
     payload: dict[str, object] = {
         "record_type": "paper_data_suite_environment",
         "contract_version": "1",
-        "suite_version": "0.1.0.dev0",
+        "suite_version": "0.1.0",
         "compatibility_manifest_sha256": _DIGEST,
     }
     payload.update(changes)
@@ -73,7 +73,7 @@ def test_parse_environment_marker_normalizes_digest() -> None:
         _marker(compatibility_manifest_sha256=_DIGEST.upper())
     )
 
-    assert marker.suite_version == "0.1.0.dev0"
+    assert marker.suite_version == "0.1.0"
     assert marker.compatibility_manifest_sha256 == _DIGEST
 
 
@@ -109,7 +109,7 @@ def test_existing_windows_venv_is_inspected_as_filesystem_metadata(
         encoding="utf-8",
     )
     site_packages = target / "Lib" / "site-packages"
-    _write_dist_info(site_packages, "paper-data-suite", "0.1.0.dev0")
+    _write_dist_info(site_packages, "paper-data-suite", "0.1.0")
     _write_dist_info(site_packages, "pds-core", "0.6.0")
 
     snapshot = inspect_windows_environment(
@@ -126,7 +126,7 @@ def test_existing_windows_venv_is_inspected_as_filesystem_metadata(
         (item.distribution, item.version)
         for item in snapshot.installed_distributions
     ) == (
-        ("paper-data-suite", "0.1.0.dev0"),
+        ("paper-data-suite", "0.1.0"),
         ("pds-core", "0.6.0"),
     )
 

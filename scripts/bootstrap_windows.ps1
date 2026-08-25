@@ -510,7 +510,7 @@ try {
         ) | ConvertFrom-Json
 
         Write-Host ""
-        Write-Host "Authenticated component artifacts:"
+        Write-Host "Authenticated release artifacts:"
         $VerifiedArtifacts = @($VerificationSummary.verified_artifacts)
         if ($VerifiedArtifacts.Count -eq 0) {
             Write-Host "  none required by this plan"
@@ -588,6 +588,19 @@ try {
                 $_.component_id -eq 'suite'
             }
 
+            $PipWheel = $ArtifactsByComponent['tooling:pip']
+            if ([string]::IsNullOrWhiteSpace($PipWheel)) {
+                throw "Authenticated pip release-tool artifact is unavailable."
+            }
+            Invoke-Required "Install exact authenticated pip tooling" $TargetPython @(
+                '-m', 'pip', 'install',
+                '--disable-pip-version-check',
+                '--no-deps',
+                '--no-index',
+                '--force-reinstall',
+                $PipWheel
+            )
+
             if ($CorePlan.action -eq 'install_missing') {
                 $CoreWheel = $ArtifactsByComponent['core']
                 if ([string]::IsNullOrWhiteSpace($CoreWheel)) {
@@ -638,6 +651,12 @@ try {
                 )
             }
 
+            Invoke-Required "Remove unneeded setuptools runtime tooling" $TargetPython @(
+                '-m', 'pip', 'uninstall',
+                '--yes',
+                'setuptools'
+            )
+
             Invoke-Required "pip check" $TargetPython @(
                 '-m', 'pip', 'check'
             )
@@ -683,6 +702,12 @@ try {
             Write-Host "Installed PDS composition:"
             foreach ($Package in @($FinalizeSummary.verified_packages)) {
                 Write-Host "  $($Package.distribution) $($Package.version)"
+            }
+            foreach ($Tool in @($FinalizeSummary.verified_tooling)) {
+                Write-Host (
+                    "Qualified tooling: " +
+                    "$($Tool.distribution) $($Tool.version): PASS"
+                )
             }
             Write-Host "pip check: PASS"
             Write-Host "Environment marker: $($FinalizeSummary.marker_path)"

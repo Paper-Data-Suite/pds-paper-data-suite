@@ -16,6 +16,15 @@ from typing import cast
 
 from packaging.utils import canonicalize_name
 
+from paper_data_suite.artifact_verification import (
+    ArtifactVerificationError,
+    verify_release_tool_wheel,
+)
+from paper_data_suite.release_tooling import (
+    ReleaseToolingError,
+    load_release_tooling_contract,
+)
+
 FORBIDDEN_SIBLING_DISTRIBUTIONS = frozenset(
     {
         "scoreform",
@@ -77,6 +86,31 @@ def _venv_python(environment: Path) -> Path:
     if os.name == "nt":
         return environment / "Scripts" / "python.exe"
     return environment / "bin" / "python"
+
+
+def _qualified_release_tool_wheel(path: Path) -> Path:
+    resolved = path.resolve()
+    if not resolved.is_file():
+        raise SmokeTestError(
+            f"Release-tool wheel does not exist: {resolved}"
+        )
+    try:
+        contract = load_release_tooling_contract()
+        if len(contract.tools) != 1:
+            raise SmokeTestError(
+                "Release-tooling contract must declare exactly one tool."
+            )
+        tool = contract.tools[0]
+        if tool.distribution != "pip":
+            raise SmokeTestError(
+                "Release-tooling contract does not qualify pip."
+            )
+        verify_release_tool_wheel(tool, resolved)
+    except (ArtifactVerificationError, ReleaseToolingError) as error:
+        raise SmokeTestError(
+            f"Release-tool wheel failed exact authentication: {error}"
+        ) from error
+    return resolved
 
 
 def _scripts_directory(
@@ -448,7 +482,11 @@ raise SystemExit(main(("doctor",)))
     )
 
 
-def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
+def smoke_test(
+    suite_wheel: Path,
+    core_wheel: Path,
+    release_tool_wheel: Path,
+) -> None:
     """Install and exercise the suite wheel beside only Core."""
     suite_wheel = suite_wheel.resolve()
     core_wheel = core_wheel.resolve()
@@ -456,6 +494,7 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
         raise SmokeTestError(f"Suite wheel does not exist: {suite_wheel}")
     if not core_wheel.is_file():
         raise SmokeTestError(f"Core wheel does not exist: {core_wheel}")
+    release_tool_wheel = _qualified_release_tool_wheel(release_tool_wheel)
 
     expected_version = _wheel_version(suite_wheel)
 
@@ -477,6 +516,20 @@ def smoke_test(suite_wheel: Path, core_wheel: Path) -> None:
         command_env["PDS_WORKSPACE_ROOT"] = str(missing_workspace)
         command_env.pop("PYTHONPATH", None)
 
+        _run(
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--no-deps",
+                "--no-index",
+                "--force-reinstall",
+                str(release_tool_wheel),
+            ],
+            cwd=run_directory,
+            env=command_env,
+        )
         _run(
             [
                 str(python),
@@ -650,6 +703,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("suite_wheel", type=Path)
     parser.add_argument("core_wheel", type=Path)
+    parser.add_argument(
+        "release_tool_wheel",
+        type=Path,
+        help="exact authenticated release-tooling wheel (pip)",
+    )
     return parser
 
 
@@ -657,7 +715,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the built-wheel smoke test from the command line."""
     arguments = build_parser().parse_args(argv)
     try:
-        smoke_test(arguments.suite_wheel, arguments.core_wheel)
+        smoke_test(
+            arguments.suite_wheel,
+            arguments.core_wheel,
+            arguments.release_tool_wheel,
+        )
     except SmokeTestError as error:
         print(f"Smoke test failed: {error}", file=sys.stderr)
         return 1

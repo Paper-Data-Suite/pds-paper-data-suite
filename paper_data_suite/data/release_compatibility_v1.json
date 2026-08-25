@@ -201,7 +201,7 @@
   "record_type": "paper_data_suite_release_compatibility_manifest",
   "suite": {
     "distribution": "paper-data-suite",
-    "release_status": "development",
-    "version": "0.1.0.dev0"
+    "release_status": "release",
+    "version": "0.1.0"
   }
 }

@@ -49,6 +49,22 @@ version, and Portia does not yet have an executable application release.
 The normative manifest contract is
 [`docs/architecture/release-compatibility-manifest.md`](docs/architecture/release-compatibility-manifest.md).
 
+## v0.1.0 release qualification scope
+
+The v0.1.0 candidate is a **Windows-first teacher pilot**. Automated suite CI
+also exercises Windows and Ubuntu on Python 3.11–3.14. Linux CI provides
+software-compatibility evidence but is not equivalent to the real Windows
+teacher-pilot workflow qualification. macOS is not release-qualified for
+v0.1.0.
+
+CI command discovery for Poppler/`pdftoppm` proves command availability only; it
+does not prove real printer, scanner, camera, or PDF-imaging hardware operation.
+
+The first release uses the `Development Status :: 3 - Alpha` package classifier.
+The source identity is now promoted to `0.1.0` for final release qualification.
+Publication and tagging remain separate maintainer-authorized steps after the
+post-promotion artifact, Windows smoke, and `release-gate` checks pass.
+
 ## Verified Windows bootstrap
 
 The repository now includes a verified Windows bootstrap and exact-version
@@ -255,9 +271,10 @@ are shown as whole-roster replacements; the suite does not invent row-level merg
 semantics. Starter standards packs are Core-provided and must be selected
 explicitly. With Core v0.6.3, the suite reviews Core-owned standard definitions,
 profiles, and framework metadata together; Core's aggregate conflict result is
-authoritative and any conflict blocks `APPLY`. Existing Academic Period calendars
-are kept unchanged; a new initial calendar requires every period field explicitly
-and is shown in the final review.
+authoritative and any conflict blocks `APPLY`. Guided setup selects one starter
+pack per invocation; install additional compatible packs through later explicit
+safe reruns. Existing Academic Period calendars are kept unchanged; a new initial
+calendar requires every period field explicitly and is shown in the final review.
 
 A recommended first-time pilot sequence is:
 

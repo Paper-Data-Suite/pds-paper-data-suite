@@ -41,7 +41,7 @@ def _snapshot(
         )
     )
     return EnvironmentSnapshot(
-        path=r"C:\Users\Teacher\AppData\Local\Paper Data Suite\envs\0.1.0.dev0",
+        path=r"C:\Users\Teacher\AppData\Local\Paper Data Suite\envs\0.1.0",
         exists=exists,
         is_virtual_environment=is_virtual_environment,
         python_version=python_version,
@@ -378,7 +378,7 @@ def test_plan_is_immutable_and_does_not_retain_mutable_selection() -> None:
 def test_invalid_environment_marker_blocks_explicitly() -> None:
     manifest = load_release_compatibility_manifest()
     environment = EnvironmentSnapshot(
-        path=r"C:\Users\Teacher\AppData\Local\Paper Data Suite\envs\0.1.0.dev0",
+        path=r"C:\Users\Teacher\AppData\Local\Paper Data Suite\envs\0.1.0",
         exists=True,
         is_virtual_environment=True,
         python_version="3.11.9",

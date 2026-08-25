@@ -108,7 +108,7 @@ def test_manifest_assertion_rejects_absolute_source_path_leak(tmp_path: Path) ->
         "schema_version": "1",
         "backup_id": final.name,
         "created_at": "2026-08-20T19:01:02.345678Z",
-        "suite_version": "0.1.0.dev0",
+        "suite_version": "0.1.0",
         "core_version": "0.6.0",
         "payload_root": "workspace",
         "hash_algorithm": "sha256",

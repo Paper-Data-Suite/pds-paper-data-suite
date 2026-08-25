@@ -48,7 +48,7 @@ def _write_backup(tmp_path: Path) -> tuple[Path, WorkspaceBackupManifest]:
         schema_version=BACKUP_MANIFEST_SCHEMA_VERSION,
         backup_id=backup_root.name,
         created_at=FIXED_TIME,
-        suite_version="0.1.0.dev0",
+        suite_version="0.1.0",
         core_version="0.6.0",
         payload_root=BACKUP_PAYLOAD_ROOT,
         hash_algorithm=BACKUP_HASH_ALGORITHM,
@@ -171,8 +171,15 @@ def test_verify_rejects_linked_payload_entry_without_following(tmp_path: Path) -
     except (OSError, NotImplementedError):
         pytest.skip("symlink creation unavailable")
 
-    with pytest.raises(WorkspaceBackupVerificationError, match="linked"):
+    with pytest.raises(
+        WorkspaceBackupVerificationError,
+        match="Backup payload inventory could not be read safely",
+    ) as exc_info:
         verify_workspace_backup(backup_root)
+
+    message = str(exc_info.value)
+    assert "zero.dat" not in message
+    assert "outside.txt" not in message
 
 
 def test_verify_rejects_backup_root_file(tmp_path: Path) -> None:
@@ -202,3 +209,17 @@ def test_verify_rejects_invalid_chunk_size(tmp_path: Path) -> None:
     backup_root, _manifest = _write_backup(tmp_path)
     with pytest.raises(ValueError, match="greater than zero"):
         verify_workspace_backup(backup_root, chunk_size=0)
+
+def test_verify_corruption_error_does_not_echo_payload_filename(
+    tmp_path: Path,
+) -> None:
+    backup_root, _manifest = _write_backup(tmp_path)
+    payload = backup_root / "workspace" / "unicodé.txt"
+    payload.write_bytes(b"HELLO")
+
+    with pytest.raises(WorkspaceBackupVerificationError) as captured:
+        verify_workspace_backup(backup_root)
+
+    message = str(captured.value)
+    assert "SHA-256 mismatch" in message
+    assert "unicodé.txt" not in message

@@ -15,10 +15,24 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 
 EXPECTED_DISTRIBUTION = "paper-data-suite"
-EXPECTED_VERSION = "0.1.0.dev0"
+EXPECTED_VERSION = "0.1.0"
+EXPECTED_RELEASE_STATUS = "release"
 EXPECTED_REQUIRES_PYTHON = ">=3.11"
 EXPECTED_CORE_RANGE = SpecifierSet(">=0.6.3,<0.7")
 EXPECTED_CONSOLE_TARGET = "paper_data_suite.cli:main"
+EXPECTED_LICENSE_EXPRESSION = "MIT"
+EXPECTED_RELEASE_TOOLING = {
+    "tool_id": "pip",
+    "distribution": "pip",
+    "version": "26.2.1",
+    "requires_python": ">=3.10",
+    "requires_dist": [],
+    "wheel": "pip-26.2.1-py3-none-any.whl",
+    "sha256": (
+        "71138adf1f4ca900cdb7d289c21b7494"
+        "329f2332b6d85f0e1c42108c0384ed3e"
+    ),
+}
 
 REQUIRED_PACKAGE_FILES = frozenset(
     {
@@ -32,16 +46,27 @@ REQUIRED_PACKAGE_FILES = frozenset(
         "paper_data_suite/bootstrap_artifacts.py",
         "paper_data_suite/bootstrap_cli.py",
         "paper_data_suite/bootstrap_installation.py",
+        "paper_data_suite/classroom_apply.py",
+        "paper_data_suite/classroom_planning.py",
+        "paper_data_suite/classroom_setup.py",
+        "paper_data_suite/classroom_setup_cli.py",
         "paper_data_suite/cli.py",
         "paper_data_suite/compatibility.py",
         "paper_data_suite/component_inspection.py",
+        "paper_data_suite/doctor.py",
         "paper_data_suite/environment_inspection.py",
+        "paper_data_suite/release_tooling.py",
         "paper_data_suite/settings.py",
         "paper_data_suite/settings_cli.py",
+        "paper_data_suite/workspace_backup.py",
+        "paper_data_suite/workspace_backup_cli.py",
+        "paper_data_suite/workspace_backup_verification.py",
+        "paper_data_suite/workspace_restore.py",
         "paper_data_suite/workspace_setup.py",
         "paper_data_suite/workspace_cli.py",
         "paper_data_suite/data/__init__.py",
         "paper_data_suite/data/release_compatibility_v1.json",
+        "paper_data_suite/data/release_tooling_v1.json",
         "paper_data_suite/py.typed",
     }
 )
@@ -194,6 +219,19 @@ def validate_wheel(path: Path) -> None:
             raise PackageValidationError("Unexpected distribution version.")
         if _one_field(fields, "Requires-Python") != EXPECTED_REQUIRES_PYTHON:
             raise PackageValidationError("Unexpected Requires-Python value.")
+        if _one_field(fields, "License-Expression") != EXPECTED_LICENSE_EXPRESSION:
+            raise PackageValidationError("Unexpected wheel license expression.")
+        if _one_field(fields, "License-File") != "LICENSE":
+            raise PackageValidationError("Unexpected wheel license-file metadata.")
+
+        license_member = _single_member(names, ".dist-info/licenses/LICENSE")
+        source_license = (
+            Path(__file__).resolve().parents[1] / "LICENSE"
+        ).read_bytes()
+        if wheel.read(license_member) != source_license:
+            raise PackageValidationError(
+                "Wheel license bytes do not match repository LICENSE."
+            )
 
         _validate_runtime_requirements(fields)
 
@@ -243,6 +281,10 @@ def validate_wheel(path: Path) -> None:
             raise PackageValidationError(
                 "Wheel compatibility manifest suite version disagrees."
             )
+        if suite.get("release_status") != EXPECTED_RELEASE_STATUS:
+            raise PackageValidationError(
+                "Wheel compatibility manifest release status disagrees."
+            )
         components = manifest.get("components")
         if not isinstance(components, list):
             raise PackageValidationError(
@@ -262,6 +304,51 @@ def validate_wheel(path: Path) -> None:
         ]:
             raise PackageValidationError(
                 "Wheel compatibility manifest component set changed."
+            )
+
+        tooling_member = "paper_data_suite/data/release_tooling_v1.json"
+        try:
+            tooling = json.loads(wheel.read(tooling_member).decode("utf-8"))
+        except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise PackageValidationError(
+                "Wheel release-tooling contract is missing or invalid."
+            ) from error
+
+        if not isinstance(tooling, dict):
+            raise PackageValidationError(
+                "Wheel release-tooling contract must be a JSON object."
+            )
+        if tooling.get("record_type") != "paper_data_suite_release_tooling":
+            raise PackageValidationError(
+                "Unexpected wheel release-tooling record type."
+            )
+        if tooling.get("contract_version") != "1":
+            raise PackageValidationError(
+                "Unexpected wheel release-tooling contract version."
+            )
+        tools = tooling.get("tools")
+        if not isinstance(tools, list) or len(tools) != 1:
+            raise PackageValidationError(
+                "Wheel release-tooling contract must declare exactly one tool."
+            )
+        observed_tool = tools[0]
+        if not isinstance(observed_tool, dict):
+            raise PackageValidationError(
+                "Wheel release-tooling entry must be a JSON object."
+            )
+        for key, expected in EXPECTED_RELEASE_TOOLING.items():
+            if observed_tool.get(key) != expected:
+                raise PackageValidationError(
+                    f"Wheel release-tooling {key!r} identity changed."
+                )
+        url = observed_tool.get("url")
+        if (
+            not isinstance(url, str)
+            or not url.startswith("https://files.pythonhosted.org/")
+            or not url.endswith("/pip-26.2.1-py3-none-any.whl")
+        ):
+            raise PackageValidationError(
+                "Wheel release-tooling URL is not the qualified pip artifact."
             )
 
 

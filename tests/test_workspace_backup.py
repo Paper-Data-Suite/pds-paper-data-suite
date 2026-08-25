@@ -24,6 +24,7 @@ from paper_data_suite.workspace_backup import (
     WorkspaceBackupDestinationError,
     WorkspaceBackupDriftError,
     WorkspaceBackupManifestError,
+    WorkspaceBackupPublicationError,
     WorkspaceBackupSourceError,
     WorkspaceBackupSpaceError,
     WorkspaceBackupUnsupportedEntryError,
@@ -159,7 +160,7 @@ def test_inventory_rejects_symlink_without_following_it(tmp_path: Path) -> None:
 
     with pytest.raises(
         WorkspaceBackupUnsupportedEntryError,
-        match="does not follow linked filesystem entry",
+        match="does not follow linked filesystem entries",
     ):
         inventory_workspace(root)
 
@@ -886,3 +887,86 @@ def test_create_backup_preserves_preexisting_staging_collision(tmp_path: Path) -
 
     assert sentinel.read_text(encoding="utf-8") == "preserve"
     assert not (destination / EXPECTED_NAME).exists()
+
+def test_backup_publication_race_does_not_replace_existing_empty_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import paper_data_suite.workspace_backup as backup
+
+    staging = tmp_path / ".backup.incomplete-fixed"
+    final = tmp_path / "completed"
+    staging.mkdir()
+    sentinel = staging / "sentinel"
+    sentinel.write_text("staged", encoding="utf-8")
+    final.mkdir()
+
+    monkeypatch.setattr(
+        backup,
+        "_path_entry_exists",
+        lambda _path: False,
+    )
+
+    with pytest.raises(
+        WorkspaceBackupCollisionError,
+        match="will not be overwritten",
+    ):
+        backup._publish_staging(staging, final)
+
+    assert final.is_dir()
+    assert tuple(final.iterdir()) == ()
+    assert sentinel.read_text(encoding="utf-8") == "staged"
+
+
+def test_backup_publication_fails_closed_without_no_replace_primitive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import paper_data_suite.workspace_backup as backup
+
+    staging = tmp_path / ".backup.incomplete-fixed"
+    final = tmp_path / "completed"
+    staging.mkdir()
+
+    monkeypatch.setattr(
+        backup,
+        "_platform_name",
+        lambda: "posix",
+    )
+    monkeypatch.setattr(
+        backup,
+        "_try_renameat2_no_replace",
+        lambda _staging, _final: False,
+    )
+    monkeypatch.setattr(
+        backup,
+        "_try_renamex_no_replace",
+        lambda _staging, _final: False,
+    )
+
+    with pytest.raises(
+        WorkspaceBackupPublicationError,
+        match="Could not publish verified backup",
+    ):
+        backup._publish_staging(staging, final)
+
+    assert staging.is_dir()
+    assert not final.exists()
+
+def test_backup_internal_errors_do_not_echo_opaque_payload_name(
+    tmp_path: Path,
+) -> None:
+    import paper_data_suite.workspace_backup as backup
+
+    secret_relative = "classes/eng10/Jane-Doe-secret-assignment.pdf"
+    missing = tmp_path / "missing"
+
+    with pytest.raises(WorkspaceBackupSourceError) as captured:
+        backup._regular_file_status(
+            missing,
+            relative=secret_relative,
+            area="source",
+        )
+
+    assert secret_relative not in str(captured.value)
+    assert "Jane-Doe" not in str(captured.value)

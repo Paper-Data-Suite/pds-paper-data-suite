@@ -42,7 +42,7 @@ def _plan(tmp_path: Path) -> WorkspaceBackupPlan:
         ),
         backup_id="pds-workspace-backup-20260820T184501123456Z",
         created_at=created,
-        suite_version="0.1.0.dev0",
+        suite_version="0.1.0",
         core_version="0.6.0",
         inventory=inventory,
         destination_free_bytes=100_000_000,
