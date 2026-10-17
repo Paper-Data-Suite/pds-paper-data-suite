@@ -15,6 +15,7 @@ authors = [
 ]
 dependencies = [
     "pds-core>=0.6.3,<0.7",
+    "packaging>=24,<27",
     "cryptography>=45,<47",
 ]
 classifiers = [
