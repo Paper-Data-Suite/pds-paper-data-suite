@@ -206,16 +206,32 @@ def _expected_wrapper(target: str) -> str:
     )
 
 
-def _safe_wrapper(raw: bytes, target: str) -> None:
+def _expected_windows_pip_wrapper(target: str) -> str:
+    """Exact distlib template observed in real modern Windows pip launchers."""
+    module, function = target.split(":", 1)
+    return (
+        "import sys\n"
+        f"from {module} import {function}\n"
+        "if __name__ == '__main__':\n"
+        "    sys.argv[0] = sys.argv[0].removesuffix('.exe')\n"
+        f"    sys.exit({function}())\n"
+    )
+
+
+def _safe_wrapper(raw: bytes, target: str, *, windows: bool) -> None:
     if len(raw) > _MAX_WRAPPER:
         raise StagedRuntimeError("generated console wrapper exceeds size limit")
     try:
         current = ast.parse(raw.decode("utf-8-sig"))
-        expected = ast.parse(_expected_wrapper(target))
+        expected = [ast.parse(_expected_wrapper(target))]
+        if windows:
+            expected.append(ast.parse(_expected_windows_pip_wrapper(target)))
     except (SyntaxError, UnicodeDecodeError, ValueError) as error:
         raise StagedRuntimeError("invalid generated console wrapper") from error
-    if ast.dump(current, include_attributes=False) != ast.dump(
-        expected, include_attributes=False
+    observed_tree = ast.dump(current, include_attributes=False)
+    if not any(
+        observed_tree == ast.dump(approved, include_attributes=False)
+        for approved in expected
     ):
         raise StagedRuntimeError("console wrapper does not match expected target")
 
@@ -228,7 +244,7 @@ def _wrapper(path: Path, target: str, *, windows: bool) -> str:
                 raise StagedRuntimeError("Windows console launcher lacks MZ header")
         try:
             with zipfile.ZipFile(path) as archive:
-                if set(archive.namelist()) != {"__main__.py"}:
+                if archive.namelist() != ["__main__.py"]:
                     raise StagedRuntimeError("unexpected embedded launcher members")
                 raw = archive.read("__main__.py")
         except (OSError, KeyError, RuntimeError, zipfile.BadZipFile) as error:
@@ -239,7 +255,7 @@ def _wrapper(path: Path, target: str, *, windows: bool) -> str:
         raw = _limited(path, _MAX_WRAPPER)
         if not raw.startswith(b"#!"):
             raise StagedRuntimeError("POSIX console launcher lacks shebang")
-    _safe_wrapper(raw, target)
+    _safe_wrapper(raw, target, windows=windows)
     return digest
 
 

@@ -25,6 +25,10 @@ from paper_data_suite.evergreen_install_records import (
     PreparedRecordError,
     verify_prepared_record_against_wheelhouse,
 )
+from paper_data_suite.evergreen_pip_direct_url import (
+    PipDirectUrlError,
+    inspect_locked_pip_direct_url,
+)
 from paper_data_suite.evergreen_pip_script_records import (
     PipScriptRecordError,
     split_pip_record,
@@ -252,6 +256,26 @@ def audit_staged_pip_layout(
             ),
             windows=windows,
         )
+        # A PEP 610 direct URL is installer metadata, not wheel authority.
+        # It is accepted only for the exact authenticated local wheel path.
+        wheel_pins = {wheel.distribution: wheel for wheel in record.wheels}
+        for record_path, distribution in record_owners.items():
+            metadata_name = record_path.rsplit("/", 1)[0] + "/direct_url.json"
+            if metadata_name not in installed:
+                continue
+            wheel = wheel_pins[distribution]
+            metadata_file = installed[metadata_name]
+            with metadata_file.open("rb") as stream:
+                raw = stream.read(4097)
+            digest, size = inspect_locked_pip_direct_url(
+                raw,
+                wheel_path=wheelhouse / wheel.filename,
+                wheel_sha256=wheel.sha256,
+            )
+            if metadata_name in expected:
+                raise PipLayoutError("pip direct URL collides with wheel payload")
+            expected[metadata_name] = (digest, size)
+            generated[record_path].add(metadata_name)
         # A pip installation may omit REQUESTED for transitive wheels.
         # INSTALLER is optional on externally created but otherwise exact stages.
         optional: set[str] = set().union(*generated.values())
@@ -343,6 +367,7 @@ def audit_staged_pip_layout(
         StageAuditError,
         StagedRuntimeError,
         PreparedRecordError,
+        PipDirectUrlError,
         ValueError,
         OSError,
         KeyError,
