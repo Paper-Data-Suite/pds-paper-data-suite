@@ -25,9 +25,12 @@ from paper_data_suite.evergreen_install_records import (
     PreparedRecordError,
     verify_prepared_record_against_wheelhouse,
 )
+from paper_data_suite.evergreen_pip_script_records import (
+    PipScriptRecordError,
+    split_pip_record,
+)
 from paper_data_suite.evergreen_staged_install import (
     StageAuditError,
-    _record_entries,
     _safe_relative,
     _sha_file,
     _walk_stage,
@@ -66,6 +69,7 @@ class StagedPipLayoutAudit:
     generated_metadata: tuple[str, ...]
     files: tuple[ObservedPipFile, ...]
     inventory_sha256: str
+    launcher_records: tuple[ObservedPipFile, ...] = ()
 
 
 def _stream_hash(stream: IO[bytes], limit: int) -> tuple[str, int]:
@@ -81,7 +85,7 @@ def _stream_hash(stream: IO[bytes], limit: int) -> tuple[str, int]:
 
 def _expected(
     wheelhouse: Path,
-    wheels: tuple[tuple[str, str], ...],
+    wheels: tuple[tuple[str, str, str], ...],
     *,
     windows: bool,
 ) -> tuple[
@@ -89,13 +93,15 @@ def _expected(
     dict[str, set[str]],
     dict[str, set[str]],
     tuple[str, ...],
+    dict[str, str],
 ]:
     expected: dict[str, tuple[str, int]] = {}
     owned_by_record: dict[str, set[str]] = {}
     generated_by_record: dict[str, set[str]] = {}
     relocated: list[str] = []
+    record_owners: dict[str, str] = {}
     collisions: set[str] = set()
-    for filename, pin in wheels:
+    for filename, pin, distribution in wheels:
         path = wheelhouse / filename
         try:
             info = path.lstat()
@@ -175,6 +181,7 @@ def _expected(
                         )
                         extras.add(destination)
                     owned_by_record[record_path] = owned
+                    record_owners[record_path] = distribution
                     generated_by_record[record_path] = extras
                 source.seek(0)
                 second, second_size = _stream_hash(source, _MAX_WHEEL)
@@ -184,7 +191,13 @@ def _expected(
             raise PipLayoutError("source wheel layout cannot be audited") from error
     if len(expected) > _MAX_FILES:
         raise PipLayoutError("combined installed file count exceeds audit bound")
-    return expected, owned_by_record, generated_by_record, tuple(sorted(relocated))
+    return (
+        expected,
+        owned_by_record,
+        generated_by_record,
+        tuple(sorted(relocated)),
+        record_owners,
+    )
 
 
 def audit_staged_pip_layout(
@@ -198,6 +211,7 @@ def audit_staged_pip_layout(
     now: datetime,
     checkpoint: RevisionCheckpoint | None = None,
     layout: str | None = None,
+    require_launcher_records: bool = False,
 ) -> StagedPipLayoutAudit:
     """Authenticate files in an isolated pip-style virtualenv, without execution.
 
@@ -230,9 +244,12 @@ def audit_staged_pip_layout(
         _directories_from(stage.stage_root, stage.site_packages)
         installed = _walk_stage(stage.site_packages)
         windows = layout == "windows" or (layout is None and sys.platform == "win32")
-        expected, owners, generated, relocated = _expected(
+        expected, owners, generated, relocated, record_owners = _expected(
             wheelhouse,
-            tuple((wheel.filename, wheel.sha256) for wheel in record.wheels),
+            tuple(
+                (wheel.filename, wheel.sha256, wheel.distribution)
+                for wheel in record.wheels
+            ),
             windows=windows,
         )
         # A pip installation may omit REQUESTED for transitive wheels.
@@ -253,12 +270,43 @@ def audit_staged_pip_layout(
             ):
                 raise PipLayoutError("installed file differs from authenticated wheel")
             actual[name] = ObservedPipFile(name, digest, size)
+        if type(require_launcher_records) is not bool:
+            raise PipLayoutError("invalid launcher RECORD policy")
+        stage_relative_site = stage.site_packages.relative_to(stage.stage_root)
+        parent_prefix = "../" * len(stage_relative_site.parts)
+        launchers_by_owner: dict[str, dict[str, Path]] = {}
+        for launcher in stage.console_launchers:
+            script_path = (
+                parent_prefix + launcher.path.relative_to(stage.stage_root).as_posix()
+            )
+            launchers_by_owner.setdefault(launcher.owner, {})[script_path] = (
+                launcher.path
+            )
+        script_observed: dict[str, ObservedPipFile] = {}
         for record_path, owned in owners.items():
             with installed[record_path].open("rb") as stream:
                 raw = stream.read(_MAX_RECORD + 1)
             if len(raw) > _MAX_RECORD:
                 raise PipLayoutError("installed RECORD exceeds audit size bound")
-            rows = _record_entries(raw)
+            approved_scripts = launchers_by_owner.get(record_owners[record_path], {})
+            try:
+                rows, script_rows = split_pip_record(
+                    raw, allowed_scripts=frozenset(approved_scripts)
+                )
+            except PipScriptRecordError as error:
+                raise PipLayoutError("unsafe installed pip launcher RECORD") from error
+            if script_rows and set(script_rows) != set(approved_scripts):
+                raise PipLayoutError("installed launcher RECORD is incomplete")
+            if require_launcher_records and set(script_rows) != set(approved_scripts):
+                raise PipLayoutError("required launcher RECORD entries missing")
+            for script_name, pair in script_rows.items():
+                if _sha_file(approved_scripts[script_name]) != pair:
+                    raise PipLayoutError("installed console RECORD digest mismatch")
+                if script_name in script_observed:
+                    raise PipLayoutError("multiple wheels claim the same launcher")
+                script_observed[script_name] = ObservedPipFile(
+                    script_name, pair[0], pair[1]
+                )
             allowed = owned | (generated[record_path] & generated_present)
             if set(rows) != allowed:
                 raise PipLayoutError("installed RECORD does not enumerate exact files")
@@ -274,6 +322,11 @@ def audit_staged_pip_layout(
         for name in sorted(actual):
             item = actual[name]
             inventory.update(f"{name}\0{item.sha256}\0{item.size}\n".encode("utf-8"))
+        for name in sorted(script_observed):
+            item = script_observed[name]
+            inventory.update(
+                f"script:{name}\0{item.sha256}\0{item.size}\n".encode("utf-8")
+            )
         return StagedPipLayoutAudit(
             record.transaction_id,
             stage.site_packages,
@@ -282,6 +335,7 @@ def audit_staged_pip_layout(
             tuple(sorted(generated_present)),
             tuple(actual[name] for name in sorted(actual)),
             inventory.hexdigest(),
+            tuple(script_observed[name] for name in sorted(script_observed)),
         )
     except PipLayoutError:
         raise
