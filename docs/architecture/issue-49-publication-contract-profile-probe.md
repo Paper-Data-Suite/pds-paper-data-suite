@@ -1,0 +1,11 @@
+# Issue #49: Core publication-producer profile acceptance (Slice 31)
+
+**Scope:** explicitly authorized, ephemeral validation of an already authenticated staged PDS `paper_data_suite.publication_producers` entry point. This does not install, activate, publish, read classroom data, or authorize a module launch.
+
+The preflight delegates to the signed publisher/real-pip/native executable and provider import checks introduced in Slices 19–28. A selected registered component must own exactly one declared public entry point. When an optional publication provider is absent, return `NOT_DECLARED` without invoking a contract factory.
+
+With explicit `allow_candidate_execution=True`, run the verified staged interpreter in isolated mode (`-I -B`), in a temporary directory under the private software root, with a bounded timeout and restricted environment. The script verifies that `pds-core` owns `pds_core/publication_compatibility.py` and `pds_core/publication_records.py`, that both resolved imports point at those installed files, and that the declared provider entry point still agrees with installed metadata. Invoke the zero-argument factory, validate its returned `PublicationProducerProfile` through Core's `validate_publication_producer_profile`, require matching module ID and support for Core's `PUBLICATION_RECORD_SCHEMA_VERSION`, and check that it has publication contracts. Do not invoke compatibility evaluation, a manifest reader, publication lifecycle actions, or routing handlers.
+
+Finally, repeat all signed installation/import checks and reject drift even if the contract probe succeeded. Any probe failure is a scoped capability failure, not a global module launch prohibition. The observation `PROFILE_VALID_NOT_PUBLISHED` proves only a profile's structure against this staged Core API. It does **not** prove that a Publication Record exists, that any consumer supports its manifest/reader contract, or that a teacher may read it.
+
+**Security:** A provider factory/import can execute arbitrary code. Isolated Python flags and environment restrictions are **not** an OS sandbox. The temporary directory is outside the classroom workspace and is removed when the probe ends. No production entry point is wired into this capability.
