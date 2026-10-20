@@ -1,0 +1,11 @@
+# Issue #49 — Slice 40 validation / Windows handoff
+
+The additive package is guarded to `Paper-Data-Suite/pds-paper-data-suite`, branch `49-evergreen-launch-and-supported-composition-upgrades`, at **exact baseline** `af7c31f476ce6a4a8ae8c297fd8aa66056935ace`. The package includes precisely four new files: inert witness-bound selector, failure-injection tests, architecture notes, and this validation record. It does not touch any existing tracked file prior to Ruff formatting of new files, and does not change a teacher launcher.
+
+`run_slice40.ps1 -Repo .` checks origin, local and remote HEAD, clean tree, full SHA-256 payload hashes, nonexistent targets and staged scope before committing/pushing. Validation gates: Ruff imports/format/lint, strict mypy of the new production module, full `test_issue49_slice*.py` suite (1–40), pip dependency consistency, staged whitespace and exact-file staging. The runner refuses commit/push if any gate fails. It runs tests; it does **not** perform a real software update, selection transition or remote witness call outside the unit test doubles.
+
+The Slice 40 tests cover correct two-pass signed/pip/native verification, exact signed prior witness head, out-of-window or replayed witness, incorrect signer, malformed inputs, armed-journal revisions, unchanged classroom workspace, no code execution, two-file-only selection write, recovery-marker precedence and reader gating, selection/journal drift during witness challenge, old and new software tampering, missing directories, failure before and after recovery-capsule writing, failure after pointer restore, interruption after journal recovery write, idempotent offline retry and refusal to overwrite a foreign selection. A repeat attempted selection with a pending capsule fails.
+
+**Limitations:** publisher/pip/native orchestration uses controlled test doubles (the earlier slices test real verifiers separately); no OS-protected exclusive transaction is certified, no real installation has been activated, and no witness CAS / launch authorization exists. Expected pytest counts should be taken from the actual Windows run rather than predeclared.
+
+The expected commit message is `feat(suite): add witness-aware inert selection recovery (#49 slice 40)`. Record final SHA and Windows test results following successful push.
