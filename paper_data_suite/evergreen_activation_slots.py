@@ -28,6 +28,10 @@ from paper_data_suite.evergreen_native_evidence import (
     NativeEvidenceError,
     verify_signed_staged_native_evidence,
 )
+from paper_data_suite.evergreen_offline_commit_interlock import (
+    OfflineCommitInterlockError,
+    refuse_if_local_successor_proposal_exists,
+)
 from paper_data_suite.evergreen_update_journal import (
     UpdateJournalError,
     UpdatePhase,
@@ -442,6 +446,12 @@ def restore_previous_selection(
         recovery = _parse_recovery(raw)
         if recovery.transaction_id != transaction_id:
             raise ActivationSlotError("recovery transaction mismatch")
+        try:
+            refuse_if_local_successor_proposal_exists(root, transaction_id)
+        except OfflineCommitInterlockError as error:
+            raise ActivationSlotError(
+                "offline restore blocked: possible witness commit"
+            ) from error
         current = _read(selection_path)
         current_digest = _digest(current) if current is not None else None
         if current_digest not in {

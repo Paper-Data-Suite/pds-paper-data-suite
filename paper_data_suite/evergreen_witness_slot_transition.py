@@ -2,8 +2,8 @@
 
 The pending recovery capsule precedes any selection change. Neither the
 selection nor the journal is a production launch pointer or an active receipt.
-Restoring the exact old selection is intentionally possible offline; no witness
-head is advanced and no candidate is executed. Locks are cooperative only.
+Restoring the old inert selection is possible only before any successor
+proposal exists; no candidate is executed. Locks are cooperative only.
 """
 
 from __future__ import annotations
@@ -45,6 +45,10 @@ from paper_data_suite.evergreen_native_evidence import (
     NativeEvidenceError,
     VerifiedNativeEvidence,
     verify_signed_staged_native_evidence,
+)
+from paper_data_suite.evergreen_offline_commit_interlock import (
+    OfflineCommitInterlockError,
+    refuse_if_local_successor_proposal_exists,
 )
 from paper_data_suite.evergreen_previous_install import (
     PreviousInstallationError,
@@ -487,6 +491,12 @@ def reconcile_witness_bound_selection_offline(
                 or capsule.previous_bytes is None
             ):
                 raise WitnessSlotTransitionError("ambiguous recovery journal/capsule")
+            try:
+                refuse_if_local_successor_proposal_exists(root, transaction_id)
+            except OfflineCommitInterlockError as error:
+                raise WitnessSlotTransitionError(
+                    "offline restore blocked: possible witness commit"
+                ) from error
             old = _parse_selection(capsule.previous_bytes)
             new = UntrustedSlotSelection(
                 transaction_id,
