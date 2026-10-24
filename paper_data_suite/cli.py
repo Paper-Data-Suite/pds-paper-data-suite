@@ -28,6 +28,10 @@ from paper_data_suite.compatibility import (
     load_release_compatibility_manifest,
 )
 from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
+from paper_data_suite.evergreen_catalog_preview import (
+    CatalogPreviewError,
+    inspect_offline_catalog_preview,
+)
 from paper_data_suite.settings import SuiteSettingsError, record_recent_component
 from paper_data_suite.settings_cli import (
     run_settings_clear_recent,
@@ -243,13 +247,28 @@ def build_parser() -> argparse.ArgumentParser:
             "APPLY authorizes Core writes."
         ),
     )
-    subparsers.add_parser(
+    modules = subparsers.add_parser(
         "modules",
-        help="list applications this suite release supports launching",
+        help="list suite applications or preview signed offline release claims",
         description=(
             "List suite-qualified teacher applications and their current launch "
-            "availability without importing or starting them."
+            "availability without importing or starting them. Optional catalog "
+            "preview authenticates signed metadata but never enables launch."
         ),
+    )
+    modules.add_argument(
+        "--catalog-cache",
+        type=Path,
+        help="offline signed metadata cache to preview (read-only)",
+    )
+    modules.add_argument(
+        "--trust-policy",
+        type=Path,
+        help="trusted public-key policy file for diagnostic verification",
+    )
+    modules.add_argument(
+        "--trust-sha256",
+        help="policy SHA-256 obtained from an independent trusted source",
     )
     launch = subparsers.add_parser(
         "launch",
@@ -315,7 +334,38 @@ def _print_inventory_failure(error: Exception) -> None:
     print(f"Application inventory failed: {message}", file=sys.stderr)
 
 
-def _run_modules() -> int:
+def _run_modules(
+    *,
+    catalog_cache: Path | None = None,
+    trust_policy: Path | None = None,
+    trust_sha256: str | None = None,
+) -> int:
+    supplied = (catalog_cache, trust_policy, trust_sha256)
+    if any(value is not None for value in supplied):
+        if not all(value is not None for value in supplied):
+            print(
+                "Catalog preview requires --catalog-cache, --trust-policy, "
+                "and --trust-sha256 together.",
+                file=sys.stderr,
+            )
+            return 2
+        assert catalog_cache is not None
+        assert trust_policy is not None
+        assert trust_sha256 is not None
+        from datetime import datetime, timezone
+
+        try:
+            preview = inspect_offline_catalog_preview(
+                catalog_cache=catalog_cache,
+                trust_policy=trust_policy,
+                pinned_policy_sha256=trust_sha256,
+                now=datetime.now(timezone.utc),
+            )
+        except CatalogPreviewError as error:
+            print(f"Offline signed catalog preview refused: {error}", file=sys.stderr)
+            return 1
+        print(preview, end="")
+        return 0
     try:
         manifest = load_release_compatibility_manifest()
         inventory = _resolved_inventory(manifest)
@@ -477,7 +527,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command == "setup":
         return run_classroom_setup()
     if arguments.command == "modules":
-        return _run_modules()
+        return _run_modules(
+            catalog_cache=arguments.catalog_cache,
+            trust_policy=arguments.trust_policy,
+            trust_sha256=arguments.trust_sha256,
+        )
     if arguments.command == "launch":
         return _run_launch(arguments.component_id)
     parser.print_help()
