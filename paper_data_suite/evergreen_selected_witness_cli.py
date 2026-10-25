@@ -18,6 +18,7 @@ from typing import cast
 from packaging.utils import canonicalize_name
 
 from paper_data_suite.evergreen_catalog_state import (
+    CatalogSnapshot,
     CatalogStateError,
     load_catalog_cache,
 )
@@ -192,14 +193,14 @@ def _directory(path: Path, label: str) -> Path:
         raise SelectedWitnessCliError(f"unsafe or unavailable {label}") from error
 
 
-def inspect_selected_witness_catalog_audit(
+def inspect_selected_witness_catalog_evidence(
     *,
     catalog_cache: Path,
     trust_policy: Path,
     pinned_policy_sha256: str,
     configuration: Path,
     now: datetime,
-) -> str:
+) -> tuple[CatalogSnapshot, WitnessSelectedStageObservation]:
     """Read strict operator config; authenticate and freshly inspect selection.
 
     Never used implicitly by modules/doctor/launch. This is a deliberately
@@ -301,7 +302,7 @@ def inspect_selected_witness_catalog_audit(
             trust=pinned.keyring,
             now=now,
         )
-        return render_selected_witness_audit(observed)
+        return snapshot, observed
     except SelectedWitnessCliError:
         raise
     except (
@@ -319,8 +320,28 @@ def inspect_selected_witness_catalog_audit(
         ) from error
 
 
+def inspect_selected_witness_catalog_audit(
+    *,
+    catalog_cache: Path,
+    trust_policy: Path,
+    pinned_policy_sha256: str,
+    configuration: Path,
+    now: datetime,
+) -> str:
+    """Keep the existing public diagnostic output/API unchanged (Slice 63)."""
+    _, observed = inspect_selected_witness_catalog_evidence(
+        catalog_cache=catalog_cache,
+        trust_policy=trust_policy,
+        pinned_policy_sha256=pinned_policy_sha256,
+        configuration=configuration,
+        now=now,
+    )
+    return render_selected_witness_audit(observed)
+
+
 __all__ = (
     "SelectedWitnessCliError",
     "inspect_selected_witness_catalog_audit",
+    "inspect_selected_witness_catalog_evidence",
     "render_selected_witness_audit",
 )

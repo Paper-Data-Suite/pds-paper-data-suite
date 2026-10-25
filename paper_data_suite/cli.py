@@ -40,6 +40,10 @@ from paper_data_suite.evergreen_staged_catalog_cli import (
     StagedCatalogCliError,
     inspect_offline_staged_catalog_audit,
 )
+from paper_data_suite.evergreen_update_plan_cli import (
+    UpdateReviewCliError,
+    inspect_authenticated_update_review,
+)
 from paper_data_suite.settings import SuiteSettingsError, record_recent_component
 from paper_data_suite.settings_cli import (
     run_settings_clear_recent,
@@ -303,6 +307,29 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="explicit online witnessed selected-stage diagnostic config (no launch)",
     )
+    update = subparsers.add_parser(
+        "update",
+        help="review an authenticated per-module or composition update plan",
+        description=(
+            "Read-only update planning against a freshly witnessed selected "
+            "installation and independently pinned signed catalog. "
+            "No installation or activation is supported by this command."
+        ),
+    )
+    update.add_argument(
+        "--plan",
+        action="store_true",
+        help="explicitly request read-only planning; no software changes",
+    )
+    update.add_argument(
+        "--target",
+        action="append",
+        help="component=exact.version or component=REMOVE; may repeat",
+    )
+    update.add_argument("--catalog-cache", type=Path)
+    update.add_argument("--trust-policy", type=Path)
+    update.add_argument("--trust-sha256")
+    update.add_argument("--witness-config", type=Path)
     launch = subparsers.add_parser(
         "launch",
         help="launch one suite-qualified application menu",
@@ -497,6 +524,58 @@ def _run_modules(
     return 0
 
 
+def _run_update(
+    *,
+    plan: bool = False,
+    target: tuple[str, ...] = (),
+    catalog_cache: Path | None = None,
+    trust_policy: Path | None = None,
+    trust_sha256: str | None = None,
+    witness_config: Path | None = None,
+) -> int:
+    """Explicitly read-only plan; absence of any required field is not a fallback."""
+    if (
+        not plan
+        or not target
+        or any(
+            value is None
+            for value in (catalog_cache, trust_policy, trust_sha256, witness_config)
+        )
+    ):
+        print(
+            "Update planning requires --plan, at least one --target, "
+            "--catalog-cache, --trust-policy, --trust-sha256 and --witness-config.",
+            file=sys.stderr,
+        )
+        return 2
+    assert catalog_cache is not None
+    assert trust_policy is not None
+    assert trust_sha256 is not None
+    assert witness_config is not None
+    import sysconfig
+    from datetime import datetime, timezone
+
+    try:
+        report = inspect_authenticated_update_review(
+            catalog_cache=catalog_cache,
+            trust_policy=trust_policy,
+            pinned_policy_sha256=trust_sha256,
+            witness_configuration=witness_config,
+            target_specs=target,
+            python_minor=f"{sys.version_info.major}.{sys.version_info.minor}",
+            platform_tag=sysconfig.get_platform()
+            .lower()
+            .replace("-", "_")
+            .replace(".", "_"),
+            now=datetime.now(timezone.utc),
+        )
+    except UpdateReviewCliError as error:
+        print(f"Authenticated update plan refused: {error}", file=sys.stderr)
+        return 1
+    print(report, end="")
+    return 0
+
+
 def _manifest_component(
     manifest: ReleaseCompatibilityManifest,
     component_id: str,
@@ -656,6 +735,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             audit_stage_root=arguments.audit_stage_root,
             audit_wheelhouse=arguments.audit_wheelhouse,
             audit_witness_selected=arguments.audit_witness_selected,
+        )
+    if arguments.command == "update":
+        return _run_update(
+            plan=arguments.plan,
+            target=tuple(arguments.target or ()),
+            catalog_cache=arguments.catalog_cache,
+            trust_policy=arguments.trust_policy,
+            trust_sha256=arguments.trust_sha256,
+            witness_config=arguments.witness_config,
         )
     if arguments.command == "launch":
         return _run_launch(arguments.component_id)
