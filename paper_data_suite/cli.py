@@ -32,6 +32,10 @@ from paper_data_suite.evergreen_catalog_preview import (
     CatalogPreviewError,
     inspect_offline_catalog_preview,
 )
+from paper_data_suite.evergreen_staged_catalog_cli import (
+    StagedCatalogCliError,
+    inspect_offline_staged_catalog_audit,
+)
 from paper_data_suite.settings import SuiteSettingsError, record_recent_component
 from paper_data_suite.settings_cli import (
     run_settings_clear_recent,
@@ -275,6 +279,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="correlate signed release versions with untrusted local package metadata",
     )
+    modules.add_argument(
+        "--audit-staged-evidence",
+        type=Path,
+        help="read-only signed evidence directory for an isolated staged candidate",
+    )
+    modules.add_argument(
+        "--audit-stage-root",
+        type=Path,
+        help="isolated installed candidate environment to audit (not active)",
+    )
+    modules.add_argument(
+        "--audit-wheelhouse",
+        type=Path,
+        help="signed candidate wheelhouse to audit without installing anything",
+    )
     launch = subparsers.add_parser(
         "launch",
         help="launch one suite-qualified application menu",
@@ -345,8 +364,49 @@ def _run_modules(
     trust_policy: Path | None = None,
     trust_sha256: str | None = None,
     compare_local_metadata: bool = False,
+    audit_staged_evidence: Path | None = None,
+    audit_stage_root: Path | None = None,
+    audit_wheelhouse: Path | None = None,
 ) -> int:
     supplied = (catalog_cache, trust_policy, trust_sha256)
+    stage_options = (audit_staged_evidence, audit_stage_root, audit_wheelhouse)
+    if any(item is not None for item in stage_options):
+        if not all(item is not None for item in (*stage_options, *supplied)):
+            print(
+                "Staged candidate audit requires all three --audit-* options "
+                "and --catalog-cache, --trust-policy, --trust-sha256.",
+                file=sys.stderr,
+            )
+            return 2
+        if compare_local_metadata:
+            print(
+                "Staged audit and --compare-local-metadata cannot be combined.",
+                file=sys.stderr,
+            )
+            return 2
+        assert catalog_cache is not None
+        assert trust_policy is not None
+        assert trust_sha256 is not None
+        assert audit_staged_evidence is not None
+        assert audit_stage_root is not None
+        assert audit_wheelhouse is not None
+        from datetime import datetime, timezone
+
+        try:
+            report = inspect_offline_staged_catalog_audit(
+                catalog_cache=catalog_cache,
+                trust_policy=trust_policy,
+                pinned_policy_sha256=trust_sha256,
+                evidence_directory=audit_staged_evidence,
+                stage_root=audit_stage_root,
+                wheelhouse=audit_wheelhouse,
+                now=datetime.now(timezone.utc),
+            )
+        except StagedCatalogCliError as error:
+            print(f"Staged candidate audit refused: {error}", file=sys.stderr)
+            return 1
+        print(report, end="")
+        return 0
     if compare_local_metadata and not all(value is not None for value in supplied):
         print(
             "Local metadata correlation requires --catalog-cache, --trust-policy, "
@@ -546,6 +606,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             trust_policy=arguments.trust_policy,
             trust_sha256=arguments.trust_sha256,
             compare_local_metadata=arguments.compare_local_metadata,
+            audit_staged_evidence=arguments.audit_staged_evidence,
+            audit_stage_root=arguments.audit_stage_root,
+            audit_wheelhouse=arguments.audit_wheelhouse,
         )
     if arguments.command == "launch":
         return _run_launch(arguments.component_id)
