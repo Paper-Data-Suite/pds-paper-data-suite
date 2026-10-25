@@ -129,6 +129,7 @@ def inspect_offline_catalog_preview(
     trust_policy: Path,
     pinned_policy_sha256: str,
     now: datetime,
+    compare_local_metadata: bool = False,
 ) -> str:
     """Read signed cached metadata under a supplied, separately pinned keyring.
 
@@ -158,7 +159,14 @@ def inspect_offline_catalog_preview(
         ) from error
     if snapshot is None:
         raise CatalogPreviewError("signed release cache is missing")
-    return render_catalog_preview(snapshot)
+    output = render_catalog_preview(snapshot)
+    if compare_local_metadata:
+        from paper_data_suite.evergreen_catalog_local_metadata import (
+            render_local_catalog_metadata,
+        )
+
+        output += render_local_catalog_metadata(snapshot)
+    return output
 
 
 __all__ = (

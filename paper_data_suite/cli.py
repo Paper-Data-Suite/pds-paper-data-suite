@@ -270,6 +270,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--trust-sha256",
         help="policy SHA-256 obtained from an independent trusted source",
     )
+    modules.add_argument(
+        "--compare-local-metadata",
+        action="store_true",
+        help="correlate signed release versions with untrusted local package metadata",
+    )
     launch = subparsers.add_parser(
         "launch",
         help="launch one suite-qualified application menu",
@@ -339,8 +344,16 @@ def _run_modules(
     catalog_cache: Path | None = None,
     trust_policy: Path | None = None,
     trust_sha256: str | None = None,
+    compare_local_metadata: bool = False,
 ) -> int:
     supplied = (catalog_cache, trust_policy, trust_sha256)
+    if compare_local_metadata and not all(value is not None for value in supplied):
+        print(
+            "Local metadata correlation requires --catalog-cache, --trust-policy, "
+            "and --trust-sha256 together.",
+            file=sys.stderr,
+        )
+        return 2
     if any(value is not None for value in supplied):
         if not all(value is not None for value in supplied):
             print(
@@ -360,6 +373,7 @@ def _run_modules(
                 trust_policy=trust_policy,
                 pinned_policy_sha256=trust_sha256,
                 now=datetime.now(timezone.utc),
+                compare_local_metadata=compare_local_metadata,
             )
         except CatalogPreviewError as error:
             print(f"Offline signed catalog preview refused: {error}", file=sys.stderr)
@@ -531,6 +545,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             catalog_cache=arguments.catalog_cache,
             trust_policy=arguments.trust_policy,
             trust_sha256=arguments.trust_sha256,
+            compare_local_metadata=arguments.compare_local_metadata,
         )
     if arguments.command == "launch":
         return _run_launch(arguments.component_id)
