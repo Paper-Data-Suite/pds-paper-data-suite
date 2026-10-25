@@ -32,6 +32,10 @@ from paper_data_suite.evergreen_catalog_preview import (
     CatalogPreviewError,
     inspect_offline_catalog_preview,
 )
+from paper_data_suite.evergreen_selected_witness_cli import (
+    SelectedWitnessCliError,
+    inspect_selected_witness_catalog_audit,
+)
 from paper_data_suite.evergreen_staged_catalog_cli import (
     StagedCatalogCliError,
     inspect_offline_staged_catalog_audit,
@@ -294,6 +298,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="signed candidate wheelhouse to audit without installing anything",
     )
+    modules.add_argument(
+        "--audit-witness-selected",
+        type=Path,
+        help="explicit online witnessed selected-stage diagnostic config (no launch)",
+    )
     launch = subparsers.add_parser(
         "launch",
         help="launch one suite-qualified application menu",
@@ -367,9 +376,46 @@ def _run_modules(
     audit_staged_evidence: Path | None = None,
     audit_stage_root: Path | None = None,
     audit_wheelhouse: Path | None = None,
+    audit_witness_selected: Path | None = None,
 ) -> int:
     supplied = (catalog_cache, trust_policy, trust_sha256)
     stage_options = (audit_staged_evidence, audit_stage_root, audit_wheelhouse)
+    if audit_witness_selected is not None:
+        if (
+            any(option is not None for option in stage_options)
+            or compare_local_metadata
+        ):
+            print(
+                "Witness-selected audit cannot be combined with staged or "
+                "local metadata modes.",
+                file=sys.stderr,
+            )
+            return 2
+        if not all(value is not None for value in supplied):
+            print(
+                "Witness-selected audit requires --catalog-cache, "
+                "--trust-policy, and --trust-sha256.",
+                file=sys.stderr,
+            )
+            return 2
+        assert catalog_cache is not None
+        assert trust_policy is not None
+        assert trust_sha256 is not None
+        from datetime import datetime, timezone
+
+        try:
+            report = inspect_selected_witness_catalog_audit(
+                catalog_cache=catalog_cache,
+                trust_policy=trust_policy,
+                pinned_policy_sha256=trust_sha256,
+                configuration=audit_witness_selected,
+                now=datetime.now(timezone.utc),
+            )
+        except SelectedWitnessCliError as error:
+            print(f"Witness-selected diagnostic refused: {error}", file=sys.stderr)
+            return 1
+        print(report, end="")
+        return 0
     if any(item is not None for item in stage_options):
         if not all(item is not None for item in (*stage_options, *supplied)):
             print(
@@ -609,6 +655,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             audit_staged_evidence=arguments.audit_staged_evidence,
             audit_stage_root=arguments.audit_stage_root,
             audit_wheelhouse=arguments.audit_wheelhouse,
+            audit_witness_selected=arguments.audit_witness_selected,
         )
     if arguments.command == "launch":
         return _run_launch(arguments.component_id)
