@@ -30,6 +30,20 @@
 - Focused synthetic metadata tests in isolated fixtures: 28 passed locally.
 - Production-style Windows inventory and clean installed-wheel acceptance: **not yet performed**.
 
+## Slice 97 distribution-identity correction
+
+The original Slice 96 registry used repository labels instead of the actual
+`scoreform` and `quillan` Python distribution names. On the exact Slice 96
+commit, replace only those two registry strings and update the duplicate-launch
+test; add regressions for the exact eight distribution names, live metadata
+lookup names, and refusal to treat repository labels as approved distributions.
+All prior drift, RECORD, interpreter-confinement, and no-trust regressions stay
+intact. No classroom workspace or installed environment may be mutated.
+
+This is a four-file in-place correction. Qualification requires full Ruff, strict
+mypy, isolated Slice 96 tests, complete Issue #49 plus CLI regressions, pip check,
+and a read-only inventory before guarded commit/push.
+
 ## Operation after qualification
 
 With the desired installed PDS environment activated, run:

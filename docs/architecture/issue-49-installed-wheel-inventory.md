@@ -37,6 +37,21 @@ The overall JSON response always reports `acceptance = NOT_ESTABLISHED`. Even a 
 - Only SHA-256 `RECORD` hash entries are verified. The standard `RECORD` self-entry may be unhashed; other unhashed entries trigger review. Missing, malformed, or mismatched metadata remains visible as `REVIEW_REQUIRED`, never repaired.
 - The command reports distribution names, versions, wheel tags, console-script names, counts, and bounded finding codes. It deliberately omits filesystem paths, `direct_url.json` URLs, classroom paths, raw package metadata, local usernames, and secrets.
 
+## Slice 97 correction: release distribution identity versus repository name
+
+The original Slice 96 registry mistakenly used `pds-scoreform` and `pds-quillan`,
+which are GitHub repository names, not the installed Python distribution names.
+Official release-wheel metadata declares `scoreform` and `quillan`. The approved
+registry now looks those names up directly; `pds-scoreform` and `pds-quillan`
+remain unapproved as distribution identities. The rest of the inventory and its
+strictly non-authorizing classification are unchanged. A module absent from this
+interpreter still says nothing about other development environments.
+
+The correction is only identity-lookup repair, not authenticated-wheel or
+installed-launch acceptance. The next acceptance gate still needs separately
+verified official wheel bytes, authenticated catalog provenance and isolated
+installed launches with no classroom workspace access.
+
 ## No production acceptance yet
 
 This slice is an **instrumentation/acceptance prerequisite**, not a production acceptance result. A later audited installed-wheel gate must bind exact bytes of official signed GitHub Release wheels (including transitive artifacts) to independently trusted catalog/receipt evidence, perform isolated real-wheel installation/launch tests on Windows x64/ARM64 as supported, validate `pds doctor` and `pds launch`, and reproduce the original new-Quillan-with-old-Suite refusal scenario without falling back to a source checkout.

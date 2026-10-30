@@ -26,8 +26,8 @@ from typing import Final
 APPROVED_DISTRIBUTIONS: Final = (
     "paper-data-suite",
     "pds-core",
-    "pds-scoreform",
-    "pds-quillan",
+    "scoreform",
+    "quillan",
     "pds-concord",
     "pds-meridian",
     "pds-vitrine",

@@ -238,7 +238,7 @@ def test_two_distributions_claiming_same_script_flagged(
     original = inspect_distribution("pds-core", source, installed["env"])
     colliding = replace(
         original,
-        distribution="pds-quillan",
+        distribution="quillan",
     )
     assert original.launcher_names == colliding.launcher_names
 
@@ -247,7 +247,7 @@ def test_two_distributions_claiming_same_script_flagged(
 
     monkeypatch.setattr(metadata, "distribution", lookup)
     monkeypatch.setattr("sys.prefix", str(installed["env"]))
-    observations = audit_active_interpreter(("pds-core", "pds-quillan"))
+    observations = audit_active_interpreter(("pds-core", "quillan"))
     assert len(observations) == 2
     assert all("shared_console_script_identity" in o.findings for o in observations)
 
@@ -285,6 +285,44 @@ def test_cli_emits_anonymized_and_non_authorizing_json(
     assert "NO_INSTALL_LAUNCH" in item["authority"]
     assert "root" not in item
     assert len(item["distributions"]) == 1
+
+
+def test_official_distribution_names_are_not_repo_names() -> None:
+    assert APPROVED_DISTRIBUTIONS == (
+        "paper-data-suite",
+        "pds-core",
+        "scoreform",
+        "quillan",
+        "pds-concord",
+        "pds-meridian",
+        "pds-vitrine",
+        "pds-portia",
+    )
+    assert "pds-scoreform" not in APPROVED_DISTRIBUTIONS
+    assert "pds-quillan" not in APPROVED_DISTRIBUTIONS
+
+
+def test_metadata_lookup_requests_official_distribution_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def missing(name: str) -> metadata.Distribution:
+        observed.append(name)
+        raise metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(metadata, "distribution", missing)
+    result = audit_active_interpreter(("scoreform", "quillan"))
+    assert observed == ["scoreform", "quillan"]
+    assert all(x.status == "NOT_INSTALLED_IN_THIS_INTERPRETER" for x in result)
+
+
+def test_repository_labels_cannot_replace_distribution_identity(
+    installed: dict[str, Any],
+) -> None:
+    for repo_label in ("pds-scoreform", "pds-quillan"):
+        with pytest.raises(InstalledAuditError, match="unapproved"):
+            inspect_distribution(repo_label, installed["dist"], installed["env"])
 
 
 def test_approved_inventory_does_not_expand_to_arbitrary_packages() -> None:
