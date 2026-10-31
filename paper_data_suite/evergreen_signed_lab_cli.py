@@ -27,6 +27,16 @@ def add_signed_lab_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="run only Quillan --help after signed disposable-lab inspection",
     )
+    modes.add_argument(
+        "--signed-lab-native-help",
+        action="store_true",
+        help="run Quillan --help only after separate root-signed native byte check",
+    )
+    parser.add_argument(
+        "--native-envelope",
+        type=Path,
+        help="required only for --signed-lab-native-help",
+    )
     for name, type_value in (
         ("lab-venv", Path),
         ("wheel", Path),
@@ -62,8 +72,11 @@ def dispatch_launch(
     flags: dict[str, object] = {name: getattr(arguments, name) for name in names}
     check = arguments.signed_lab_check is True
     help_only = arguments.signed_lab_help is True
-    if not check and not help_only:
-        if any(value is not None for value in flags.values()):
+    native_help = arguments.signed_lab_native_help is True
+    if not check and not help_only and not native_help:
+        if arguments.native_envelope is not None or any(
+            value is not None for value in flags.values()
+        ):
             print(
                 "REFUSED: signed lab evidence requires --signed-lab-check or "
                 "--signed-lab-help; production launch was not attempted.",
@@ -71,8 +84,11 @@ def dispatch_launch(
             )
             return 2
         return historical_launch(arguments.component_id)
-    if check and help_only:
+    if sum((check, help_only, native_help)) != 1:
         print("REFUSED: conflicting laboratory modes.", file=sys.stderr)
+        return 2
+    if native_help != (arguments.native_envelope is not None):
+        print("REFUSED: native evidence requires native help mode.", file=sys.stderr)
         return 2
     if arguments.component_id != "quillan":
         print("REFUSED: signed laboratory mode supports Quillan only.", file=sys.stderr)
@@ -102,6 +118,14 @@ def dispatch_launch(
     ]
     if help_only:
         cli.append("--execute-help")
+    if native_help:
+        cli.extend(
+            (
+                "--native-envelope",
+                str(arguments.native_envelope),
+                "--native-execute-help",
+            )
+        )
     return lab_main(cli)
 
 

@@ -283,9 +283,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--execute-help", action="store_true", help="opt in to quillan --help only"
     )
+    parser.add_argument(
+        "--native-envelope",
+        type=Path,
+        help="root-signed disposable native byte evidence",
+    )
+    parser.add_argument(
+        "--native-execute-help",
+        action="store_true",
+        help="root-attested native bytes, then Quillan --help in disposable lab",
+    )
     args = parser.parse_args(argv)
     if os.name != "nt":
         parser.error("this lab acceptance path requires Windows")
+    if args.native_execute_help and args.execute_help:
+        parser.error("native and legacy help modes are mutually exclusive")
+    if bool(args.native_envelope) != bool(args.native_execute_help):
+        parser.error("native execution requires exactly one signed native envelope")
     try:
         observation = inspect_signed_quillan_lab(
             args.lab_venv,
@@ -300,7 +314,29 @@ def main(argv: list[str] | None = None) -> int:
         from dataclasses import asdict
 
         print(json.dumps(asdict(observation), indent=2, sort_keys=True))
-        if not args.execute_help:
+        if args.native_execute_help:
+            from paper_data_suite.evergreen_signed_native_lab import (
+                NativeLabEvidenceError,
+                inspect_native_lab_envelope,
+            )
+
+            try:
+                native_observed = inspect_native_lab_envelope(
+                    args.lab_venv,
+                    envelope=_read(args.native_envelope, _MAX_ENVELOPE),
+                    wheel=args.wheel,
+                    policy=args.trust_policy,
+                    independent_policy_sha256=args.trust_sha256,
+                    registry=args.registry,
+                    module=args.module,
+                    now=datetime.now(timezone.utc),
+                )
+            except NativeLabEvidenceError as exc:
+                raise SignedLabLaunchError(
+                    "root-signed native evidence refused"
+                ) from exc
+            print(json.dumps(asdict(native_observed), indent=2, sort_keys=True))
+        if not args.execute_help and not args.native_execute_help:
             print("SIGNED_LAB_INSPECTED_NO_EXECUTION")
             return 0
         env = os.environ.copy()
@@ -317,7 +353,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         if result.returncode:
             raise SignedLabLaunchError("verified lab Quillan help failed")
-        print("SIGNED_QUILLAN_0106_HELP_EXECUTED_IN_DISPOSABLE_LAB")
+        if args.native_execute_help:
+            print("SIGNED_QUILLAN_0106_NATIVE_ATTESTED_HELP_EXECUTED_DISPOSABLE_LAB")
+        else:
+            print("SIGNED_QUILLAN_0106_HELP_EXECUTED_IN_DISPOSABLE_LAB")
         return 0
     except (SignedLabLaunchError, OSError, subprocess.TimeoutExpired) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
