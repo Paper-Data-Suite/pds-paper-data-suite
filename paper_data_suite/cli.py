@@ -36,6 +36,10 @@ from paper_data_suite.evergreen_selected_witness_cli import (
     SelectedWitnessCliError,
     inspect_selected_witness_catalog_audit,
 )
+from paper_data_suite.evergreen_signed_lab_cli import (
+    add_signed_lab_arguments,
+    dispatch_launch,
+)
 from paper_data_suite.evergreen_staged_catalog_cli import (
     StagedCatalogCliError,
     inspect_offline_staged_catalog_audit,
@@ -342,6 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
         "component_id",
         help="stable suite component ID, for example scoreform or quillan",
     )
+    add_signed_lab_arguments(launch)
     return parser
 
 
@@ -746,6 +751,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             witness_config=arguments.witness_config,
         )
     if arguments.command == "launch":
-        return _run_launch(arguments.component_id)
+        return dispatch_launch(arguments, historical_launch=_run_launch)
     parser.print_help()
     return 0
