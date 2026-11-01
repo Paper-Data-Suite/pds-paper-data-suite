@@ -27,14 +27,13 @@ from paper_data_suite.evergreen_windows_custody import (
 _APP_NAME: Final = "Paper Data Suite"
 _STATE_CHILDREN: Final = ("active-receipts", "service-state")
 _MAX_ACES: Final = 128
-# ProgramData normally permits creating unrelated child folders. That alone
-# must not be confused with permission to mutate an EXISTING protected PDS
-# child. DELETE_CHILD, DELETE, security-descriptor changes, generic access,
-# write attributes and other modifications to the parent remain prohibited.
+# The default ProgramData DACL may allow ordinary users to create entries
+# and change attributes/extended attributes on ProgramData itself. Those rights
+# do not grant mutation of an existing independently protected PDS child.
+# Refuse delete/replace and security-descriptor authority on the parent;
+# inspect every existing PDS-owned child separately with the STRICT policy.
 _PARENT_DANGER: Final = (
-    0x10  # WRITE_EA
-    | 0x40  # DELETE_CHILD
-    | 0x100  # WRITE_ATTRIBUTES
+    0x40  # DELETE_CHILD
     | 0x10000  # DELETE
     | 0x40000  # WRITE_DAC
     | 0x80000  # WRITE_OWNER
