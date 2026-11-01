@@ -33,9 +33,9 @@ _DIST: Final = (
     "pds-core",
     "pds-meridian",
     "pds-portia",
-    "pds-quillan",
-    "pds-scoreform",
     "pds-vitrine",
+    "quillan",
+    "scoreform",
 )
 _OPERATION: Final = "NEW_PROTECTED_WINDOWS_INSTALLATION"
 _SERVICE: Final = "PaperDataSuiteService"
