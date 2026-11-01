@@ -22,7 +22,10 @@ from typing import Final, cast
 
 # These FileSystemRights bits are sufficient for conservative refusal of
 # untrusted modification. Deny entries never cancel an observed allow here.
-_WRITE: Final = 0x2 | 0x4 | 0x10 | 0x40 | 0x100 | 0x10000 | 0x40000 | 0x80000
+_GENERIC_WRITE: Final = 0x10000000 | 0x40000000
+_WRITE: Final = (
+    0x2 | 0x4 | 0x10 | 0x40 | 0x100 | 0x10000 | 0x40000 | 0x80000 | _GENERIC_WRITE
+)
 _SYSTEM: Final = "S-1-5-18"
 _ADMINISTRATORS: Final = "S-1-5-32-544"
 _MAX_DEPTH: Final = 16
@@ -105,7 +108,7 @@ def inspect_acl_document(value: object) -> None:
             or not sid.startswith("S-1-")
             or kind not in ("Allow", "Deny")
             or type(rights) is not int
-            or rights < 0
+            or rights < -(2**31)
             or rights > 2**32 - 1
             or type(inherited) is not bool
             or type(inherit_only) is not bool
@@ -115,7 +118,7 @@ def inspect_acl_document(value: object) -> None:
             kind == "Allow"
             and not inherit_only
             and not _trusted(sid)
-            and rights & _WRITE
+            and (rights & 0xFFFFFFFF) & _WRITE
         ):
             raise CustodyAuditError(
                 "non-administrator principal has DACL write authority"
