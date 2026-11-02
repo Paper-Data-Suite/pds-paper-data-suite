@@ -129,3 +129,4 @@ if ($badCode -ne 2) {
 }
 Write-Host 'SLICE122_NATIVE_APPLY_FLAG_REFUSED'
 Write-Host "SLICE122_NATIVE_BUILD_AND_RUNTIME_PASSED_$Architecture"
+exit 0
