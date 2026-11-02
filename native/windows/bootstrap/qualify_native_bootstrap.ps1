@@ -5,6 +5,8 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('x64', 'ARM64')]
     [string] $Architecture,
+    [ValidateSet('Visual Studio 17 2022', 'Visual Studio 18 2026')]
+    [string] $Generator = 'Visual Studio 17 2022',
     [switch] $RequireRuntime
 )
 
@@ -37,7 +39,7 @@ New-Item -ItemType Directory -Path $build -Force | Out-Null
 Write-Host "SLICE122_BUILD_ROOT: $root"
 Write-Host "SLICE122_TARGET_ARCH: $Architecture"
 
-& $cmake.Source -S $source -B $build -G 'Visual Studio 17 2022' -A $Architecture
+& $cmake.Source -S $source -B $build -G $Generator -A $Architecture
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_CMAKE_CONFIGURE_FAILED: VS2022 C++ toolchain or Windows SDK unavailable.'
 }
@@ -128,5 +130,8 @@ if ($badCode -ne 2) {
     throw 'Native executable did not refuse an attempted --apply request.'
 }
 Write-Host 'SLICE122_NATIVE_APPLY_FLAG_REFUSED'
+if ($Architecture -eq 'ARM64' -and $RequireRuntime) {
+    Write-Host 'SLICE123_NATIVE_ARM64_RUNTIME_PASSED'
+}
 Write-Host "SLICE122_NATIVE_BUILD_AND_RUNTIME_PASSED_$Architecture"
 exit 0

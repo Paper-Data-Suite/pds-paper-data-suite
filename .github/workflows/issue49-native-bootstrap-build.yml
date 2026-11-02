@@ -39,3 +39,25 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $changes.Count -ne 0) {
             throw 'Native build mutated source tree.'
           }
+
+  native-arm64-runtime:
+    name: Windows 11 ARM64 native runtime (VS2026)
+    runs-on: windows-11-vs2026-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Build and execute actual ARM64 diagnostic; require refusal checks
+        shell: pwsh
+        run: |
+          ./native/windows/bootstrap/qualify_native_bootstrap.ps1 `
+            -Architecture 'ARM64' `
+            -Generator 'Visual Studio 18 2026' `
+            -RequireRuntime
+      - name: Ensure source tree was not mutated
+        shell: pwsh
+        run: |
+          git diff --check
+          $changes = @(git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $changes.Count -ne 0) {
+            throw 'Native ARM64 runtime job mutated source tree.'
+          }
