@@ -1,0 +1,41 @@
+name: Suite 49 native bootstrap build acceptance
+
+on:
+  push:
+    branches:
+      - 49-evergreen-launch-and-supported-composition-upgrades
+    paths:
+      - native/windows/bootstrap/**
+      - .github/workflows/issue49-native-bootstrap-build.yml
+  pull_request:
+    paths:
+      - native/windows/bootstrap/**
+      - .github/workflows/issue49-native-bootstrap-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-bootstrap-build:
+    name: MSVC 2022 ${{ matrix.arch }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, ARM64]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Build native Win32 read-only diagnostic and run eligible smoke checks
+        shell: pwsh
+        run: |
+          ./native/windows/bootstrap/qualify_native_bootstrap.ps1 -Architecture '${{ matrix.arch }}'
+      - name: Ensure source tree was not mutated
+        shell: pwsh
+        run: |
+          git diff --check
+          $changes = @(git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $changes.Count -ne 0) {
+            throw 'Native build mutated source tree.'
+          }
