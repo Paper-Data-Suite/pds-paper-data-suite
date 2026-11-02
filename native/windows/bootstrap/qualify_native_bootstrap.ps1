@@ -48,6 +48,21 @@ if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_COMPILATION_FAILED: the native bootstrap source did not compile.'
 }
 
+# Separate unsigned signature witness: no signing key, publisher pin or installer privilege.
+if (-not (Test-Path -LiteralPath (Join-Path $source 'signature_probe.cpp') -PathType Leaf)) {
+    throw 'Native signature witness source unavailable.'
+}
+& $cmake.Source --build $build --config Release --target pds_windows_signature_probe --parallel 2
+if ($LASTEXITCODE -ne 0) {
+    throw 'BLOCKED_NATIVE_SIGNATURE_WITNESS_COMPILATION_FAILED.'
+}
+$signatureExe = Join-Path $build 'Release\pds_windows_signature_probe.exe'
+if (-not (Test-Path -LiteralPath $signatureExe -PathType Leaf)) {
+    throw 'Compiled native signature witness missing.'
+}
+$signatureDigest = (Get-FileHash -LiteralPath $signatureExe -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host "SLICE125_UNSIGNED_SIGNATURE_WITNESS_SHA256: $signatureDigest"
+
 $exe = Join-Path $build 'Release\pds_windows_bootstrap_probe.exe'
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
     throw 'Native bootstrap executable missing after successful build.'
@@ -70,6 +85,22 @@ $expectedMachine = if ($Architecture -eq 'x64') { [uint16]0x8664 } else { [uint1
 if ($machine -ne $expectedMachine) {
     throw ('Native binary target architecture mismatch: expected 0x{0:X4}, observed 0x{1:X4}.' -f $expectedMachine, $machine)
 }
+# The separately compiled signer witness must match the same PE architecture.
+$sigImage = [System.IO.File]::ReadAllBytes($signatureExe)
+if ($sigImage.Length -lt 128 -or $sigImage[0] -ne 77 -or $sigImage[1] -ne 90) {
+    throw 'Native signature witness is not a valid MZ image.'
+}
+$sigPeOffset = [System.BitConverter]::ToInt32($sigImage, 0x3c)
+if ($sigPeOffset -lt 64 -or $sigPeOffset -gt ($sigImage.Length - 24) -or
+    $sigImage[$sigPeOffset] -ne 80 -or $sigImage[$sigPeOffset + 1] -ne 69 -or
+    $sigImage[$sigPeOffset + 2] -ne 0 -or $sigImage[$sigPeOffset + 3] -ne 0) {
+    throw 'Native signature witness has an invalid PE header.'
+}
+$sigMachine = [System.BitConverter]::ToUInt16($sigImage, $sigPeOffset + 4)
+if ($sigMachine -ne $expectedMachine) {
+    throw 'Native signature witness target architecture mismatch.'
+}
+Write-Host "SLICE125_NATIVE_SIGNATURE_TARGET_VERIFIED_$Architecture"
 $digest = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "SLICE122_NATIVE_BINARY_SHA256: $digest"
 Write-Host "SLICE122_NATIVE_COMPILED_$Architecture"
@@ -145,6 +176,35 @@ if ($badCode -ne 2) {
     throw 'Native executable did not refuse an attempted --apply request.'
 }
 Write-Host 'SLICE122_NATIVE_APPLY_FLAG_REFUSED'
+
+# The CI-built witness has no Authenticode signature: reject and retain no authority.
+$sigLines = @(& $signatureExe)
+$sigCode = $LASTEXITCODE
+if ($sigLines.Count -ne 2 -or $sigCode -ne 1) {
+    throw 'Unsigned native signature witness did not fail closed.'
+}
+$sig = $sigLines[0] | ConvertFrom-Json -ErrorAction Stop
+if ($sig.status -ne 'NATIVE_SIGNATURE_NOT_TRUSTED' -or
+    $sig.wintrust_chain_observed -cne $false -or
+    $sig.publisher_pin_verified -cne $false -or
+    $sig.authorized_to_install -cne $false -or
+    $sig.authority -ne $noAuthority -or
+    $sigLines[1] -ne $noAuthority) {
+    throw 'Unsigned signature witness incorrectly claimed trusted installer authority.'
+}
+$sigRefused = @(& $signatureExe --install)
+$sigRefusalCode = $LASTEXITCODE
+if ($sigRefusalCode -ne 2 -or $sigRefused.Count -ne 2) {
+    throw 'Native signature witness did not refuse install switch.'
+}
+$sigDenied = $sigRefused[0] | ConvertFrom-Json -ErrorAction Stop
+if ($sigDenied.status -ne 'REFUSED_UNSUPPORTED_SIGNATURE_ARGUMENT' -or
+    $sigDenied.authorized_to_install -cne $false -or
+    $sigRefused[1] -ne $noAuthority) {
+    throw 'Native signature witness install denial invalid.'
+}
+Write-Host 'SLICE125_NATIVE_UNSIGNED_SIGNATURE_AND_INSTALL_REFUSAL_PASSED'
+
 if ($Architecture -eq 'ARM64' -and $RequireRuntime) {
     Write-Host 'SLICE123_NATIVE_ARM64_RUNTIME_PASSED'
 }
