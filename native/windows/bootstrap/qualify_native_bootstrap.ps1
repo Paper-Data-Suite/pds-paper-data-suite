@@ -43,7 +43,7 @@ Write-Host "SLICE122_TARGET_ARCH: $Architecture"
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_CMAKE_CONFIGURE_FAILED: VS2022 C++ toolchain or Windows SDK unavailable.'
 }
-& $cmake.Source --build $build --config Release --target pds_windows_bootstrap_probe --parallel 2
+& $cmake.Source --build $build --config Release --target pds_windows_bootstrap_probe pds_checkpoint_contract_test --parallel 2
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_COMPILATION_FAILED: the native bootstrap source did not compile.'
 }
@@ -74,6 +74,11 @@ $digest = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvaria
 Write-Host "SLICE122_NATIVE_BINARY_SHA256: $digest"
 Write-Host "SLICE122_NATIVE_COMPILED_$Architecture"
 
+$contractExe = Join-Path $build 'Release\pds_checkpoint_contract_test.exe'
+if (-not (Test-Path -LiteralPath $contractExe -PathType Leaf)) {
+    throw 'Native checkpoint contract test executable is missing.'
+}
+
 $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 if ($Architecture -ne $hostArchitecture) {
     if ($RequireRuntime) {
@@ -82,6 +87,16 @@ if ($Architecture -ne $hostArchitecture) {
     Write-Host "SLICE122_CROSS_COMPILED_ONLY: $Architecture (host $hostArchitecture)"
     return
 }
+
+# Execute native C++ parser/relationship negative tests on the actual target CPU.
+# Cross-compiled ARM64 is tested by the separate native Windows 11 ARM64 job.
+$contractOutput = @(& $contractExe)
+$contractExit = $LASTEXITCODE
+if ($contractExit -ne 0 -or $contractOutput.Count -ne 1 -or
+    $contractOutput[0] -ne 'SLICE124_NATIVE_CHECKPOINT_CONTRACT_TESTS_PASSED') {
+    throw 'Native C++ checkpoint contract tests failed or returned unexpected output.'
+}
+Write-Host "SLICE124_NATIVE_CHECKPOINT_CONTRACT_PASSED_$Architecture"
 
 function Assert-NoAuthorityOutput {
     param([string[]] $Lines, [int] $Code, [string] $ExpectedStatus)

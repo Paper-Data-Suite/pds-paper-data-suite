@@ -1,7 +1,9 @@
 // Suite #49 Slice 121: independent native Win32 checkpoint-read prototype.
 // This is NOT the privileged installer, a service, an approval, or a receipt.
 // Never writes, elevates, starts/stops a service, or executes a module.
+#include "checkpoint_contract.h"
 #include <windows.h>
+#include <bcrypt.h>
 #include <aclapi.h>
 #include <knownfolders.h>
 #include <sddl.h>
@@ -151,6 +153,27 @@ bool anchored_program_data(std::wstring& base) {
     return !base.empty();
 }
 
+bool sha256_checkpoint(const std::vector<std::uint8_t>& data, std::string& hex) {
+    BCRYPT_ALG_HANDLE algorithm = nullptr;
+    if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0)
+        return false;
+    std::array<UCHAR, 32> bytes{};
+    const NTSTATUS status = BCryptHash(
+        algorithm, nullptr, 0,
+        const_cast<PUCHAR>(reinterpret_cast<const UCHAR*>(data.data())),
+        static_cast<ULONG>(data.size()), bytes.data(), static_cast<ULONG>(bytes.size()));
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    if (status < 0) return false;
+    constexpr char kHex[] = "0123456789abcdef";
+    hex.clear();
+    hex.reserve(64);
+    for (const UCHAR byte : bytes) {
+        hex.push_back(kHex[byte >> 4]);
+        hex.push_back(kHex[byte & 15]);
+    }
+    return true;
+}
+
 bool inspect_records() {
     std::wstring base;
     if (!anchored_program_data(base)) { return false; }
@@ -167,8 +190,13 @@ bool inspect_records() {
         !open_checked(journal, false, false, journal_file)) { return false; }
     std::vector<std::uint8_t> checkpoint_bytes;
     std::vector<std::uint8_t> journal_bytes;
-    return bounded_read(checkpoint_file.get(), checkpoint_bytes) &&
-           bounded_read(journal_file.get(), journal_bytes);
+    if (!bounded_read(checkpoint_file.get(), checkpoint_bytes) ||
+        !bounded_read(journal_file.get(), journal_bytes)) return false;
+    std::string observed_digest;
+    if (!sha256_checkpoint(checkpoint_bytes, observed_digest)) return false;
+    return pds_checkpoint_contract::classify_claims(
+        checkpoint_bytes, journal_bytes, observed_digest) !=
+        pds_checkpoint_contract::Relationship::invalid;
 }
 
 void message(const char* status) {
