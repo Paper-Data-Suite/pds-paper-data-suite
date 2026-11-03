@@ -66,3 +66,16 @@ if(MSVC)
 else()
     target_compile_options(pds_windows_publisher_pin_custody_probe PRIVATE -Wall -Wextra -Werror)
 endif()
+
+# Slice 129: observe primary-token elevation/integrity/admin membership only.
+# The diagnostic has no permission to provision or authorize an installer.
+add_executable(pds_windows_pin_admin_preflight publisher_pin_admin_preflight.cpp)
+target_compile_features(pds_windows_pin_admin_preflight PRIVATE cxx_std_17)
+target_compile_definitions(pds_windows_pin_admin_preflight PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(pds_windows_pin_admin_preflight PRIVATE advapi32)
+if(MSVC)
+    target_compile_options(pds_windows_pin_admin_preflight PRIVATE /W4 /WX /permissive- /sdl)
+else()
+    target_compile_options(pds_windows_pin_admin_preflight PRIVATE -Wall -Wextra -Werror)
+endif()

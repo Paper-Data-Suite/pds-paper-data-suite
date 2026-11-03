@@ -86,6 +86,12 @@ if (-not (Test-Path -LiteralPath $signatureExe -PathType Leaf)) {
 $signatureDigest = (Get-FileHash -LiteralPath $signatureExe -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "SLICE125_UNSIGNED_SIGNATURE_WITNESS_SHA256: $signatureDigest"
 
+# Slice 129: compile the read-only primary-token preflight diagnostic.
+& $cmake.Source --build $build --config Release --target pds_windows_pin_admin_preflight --parallel 2
+if ($LASTEXITCODE -ne 0) {
+    throw 'BLOCKED_NATIVE_ADMIN_PREFLIGHT_COMPILATION_FAILED.'
+}
+
 $exe = Join-Path $build 'Release\pds_windows_bootstrap_probe.exe'
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
     throw 'Native bootstrap executable missing after successful build.'
@@ -147,6 +153,16 @@ Write-Host "SLICE122_NATIVE_COMPILED_$Architecture"
 $contractExe = Join-Path $build 'Release\pds_checkpoint_contract_test.exe'
 if (-not (Test-Path -LiteralPath $contractExe -PathType Leaf)) {
     throw 'Native checkpoint contract test executable is missing.'
+}
+
+# PE identity and runtime denial are checked by an isolated, source-only helper.
+$adminGate = Join-Path $source 'qualify_native_admin_token.ps1'
+if (-not (Test-Path -LiteralPath $adminGate -PathType Leaf)) {
+    throw 'Native administrator-token gate missing.'
+}
+& $adminGate -Architecture $Architecture -Build $build -NoAuthority $noAuthority
+if ($LASTEXITCODE -ne 0) {
+    throw 'Native administrator-token no-authority gate failed.'
 }
 
 $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
