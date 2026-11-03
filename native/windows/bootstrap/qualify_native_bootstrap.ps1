@@ -52,6 +52,11 @@ if ($LASTEXITCODE -ne 0) {
 if (-not (Test-Path -LiteralPath (Join-Path $source 'signature_probe.cpp') -PathType Leaf)) {
     throw 'Native signature witness source unavailable.'
 }
+# Slice 126: compile a separate portable claimed-pin policy contract test.
+& $cmake.Source --build $build --config Release --target pds_publisher_pin_contract_test --parallel 2
+if ($LASTEXITCODE -ne 0) {
+    throw 'BLOCKED_NATIVE_PUBLISHER_PIN_CONTRACT_COMPILATION_FAILED.'
+}
 & $cmake.Source --build $build --config Release --target pds_windows_signature_probe --parallel 2
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_SIGNATURE_WITNESS_COMPILATION_FAILED.'
@@ -118,6 +123,19 @@ if ($Architecture -ne $hostArchitecture) {
     Write-Host "SLICE122_CROSS_COMPILED_ONLY: $Architecture (host $hostArchitecture)"
     return
 }
+
+# All native publisher pin tests run only on a matching CPU, not emulation.
+$pinContractExe = Join-Path $build 'Release\pds_publisher_pin_contract_test.exe'
+if (-not (Test-Path -LiteralPath $pinContractExe -PathType Leaf)) {
+    throw 'Native publisher pin contract test executable missing.'
+}
+$pinResult = @(& $pinContractExe)
+$pinCode = $LASTEXITCODE
+if ($pinCode -ne 0 -or $pinResult.Count -ne 1 -or
+    $pinResult[0] -ne 'SLICE126_NATIVE_PUBLISHER_PIN_CONTRACT_TESTS_PASSED') {
+    throw 'Native publisher pin schema or transition test failed.'
+}
+Write-Host "SLICE126_NATIVE_PUBLISHER_PIN_CONTRACT_PASSED_$Architecture"
 
 # Execute native C++ parser/relationship negative tests on the actual target CPU.
 # Cross-compiled ARM64 is tested by the separate native Windows 11 ARM64 job.

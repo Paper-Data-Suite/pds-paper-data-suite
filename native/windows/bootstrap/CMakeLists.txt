@@ -36,3 +36,12 @@ if(MSVC)
 else()
     target_compile_options(pds_windows_signature_probe PRIVATE -Wall -Wextra -Werror)
 endif()
+
+# Slice 126: pure read-only publisher pin schema tests; NOT a trust root.
+add_executable(pds_publisher_pin_contract_test publisher_pin_contract_test.cpp)
+target_compile_features(pds_publisher_pin_contract_test PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(pds_publisher_pin_contract_test PRIVATE /W4 /WX /permissive- /sdl)
+else()
+    target_compile_options(pds_publisher_pin_contract_test PRIVATE -Wall -Wextra -Werror)
+endif()
