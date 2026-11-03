@@ -47,7 +47,8 @@ if (-not $root.StartsWith($temp + 'pds-suite49-acl-sandbox-',
 }
 # A new, random and unprivileged LOCAL account, solely on the throwaway runner.
 # Account and random password are never printed. No production principal exists.
-$name = 'pds_acl_ci_' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+$name = 'pdsacl_' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+if ($name.Length -gt 20) { throw 'REFUSED: test account name exceeds Windows limit' }
 $random = New-Object byte[] 32
 [Security.Cryptography.RandomNumberGenerator]::Fill($random)
 $secret = ([Convert]::ToBase64String($random) + '!aA1')
