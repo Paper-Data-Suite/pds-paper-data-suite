@@ -123,6 +123,10 @@ if ($proof.status -ne 'DISPOSABLE_ORDINARY_TOKEN_DENIALS_OBSERVED_UNATTESTED' -o
     $proof.ordinary_user_sid -cne $sid -or
     $proof.positive_control_read_write -cne $true -or
     $proof.protected_directory_denials -ne 4 -or
+    $proof.positive_control_delete_access_granted -cne $true -or
+    $proof.protected_object_delete_access_denials -ne 4 -or
+    $proof.protected_parent_delete_child_access_denials -ne 4 -or
+    $proof.no_delete_operation_performed -cne $true -or
     $proof.independently_attested_teacher_identity -cne $false -or
     $proof.parent_deletion_protection_verified -cne $false -or
     $proof.installed_service_accepted -cne $false -or
@@ -145,6 +149,7 @@ foreach ($path in $protected) {
     }
 }
 Write-Host 'SLICE137_EPHEMERAL_STANDARD_USER_POSITIVE_AND_FOUR_NEGATIVE_ACL_CHECKS_PASSED'
+Write-Host 'SLICE138_EPHEMERAL_DELETE_AND_PARENT_DELETE_CHILD_RIGHTS_DENIED'
 Write-Host $noAuthority
 # The account and sandbox persist only within the disposable CI runner;
 # no unreviewed user deletion, cleanup, rollback or production write.
