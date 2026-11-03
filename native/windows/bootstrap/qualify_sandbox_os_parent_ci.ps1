@@ -142,12 +142,49 @@ function Invoke-OrdinaryProbe([string] $Source) {
         throw 'REFUSED: ordinary-user test process did not complete'
     }
 }
+# Slice 140: exactly one fixed, SYNTHETIC, disposable test artifact.
+# Neither these bytes nor the hash are a PDS release or an authenticated signer.
+$payloadPath = Join-Path $root 'app-binaries\synthetic-suite49-test-payload.bin'
+$syntheticBytes = [Text.Encoding]::ASCII.GetBytes(
+    'PDS_SUITE49_SYNTHETIC_PAYLOAD_V1_NOT_A_SIGNED_RELEASE')
+$expectedPayloadSha256 = [Convert]::ToHexString(
+    [Security.Cryptography.SHA256]::HashData($syntheticBytes)).ToLowerInvariant()
+if (Test-Path -LiteralPath $payloadPath) {
+    throw 'REFUSED: disposable synthetic artifact already exists'
+}
+[IO.File]::WriteAllBytes($payloadPath, $syntheticBytes)
+$payloadFile = Get-Item -LiteralPath $payloadPath -Force -ErrorAction Stop
+if ($payloadFile.PSIsContainer -or
+    (($payloadFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) -or
+    $payloadFile.Length -ne $syntheticBytes.Length -or
+    (Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+        $expectedPayloadSha256) {
+    throw 'REFUSED: staged synthetic test bytes disagree'
+}
+$payloadAcl = Get-Acl -LiteralPath $payloadPath -ErrorAction Stop
+$payloadAces = @($payloadAcl.GetAccessRules($true, $true,
+    [Security.Principal.SecurityIdentifier]))
+if ($payloadAces.Count -ne 2 -or
+    @($payloadAces | Where-Object {
+        $_.IdentityReference.Value -notin @($adminSid.Value, $systemSid.Value) -or
+        $_.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or
+        $_.FileSystemRights -ne [Security.AccessControl.FileSystemRights]::FullControl
+    }).Count -ne 0) {
+    throw 'REFUSED: synthetic payload inherited untrusted access rules'
+}
+$payloadProbe = Join-Path $PSScriptRoot 'sandbox_protected_payload_probe.ps1'
+if (-not (Test-Path -LiteralPath $payloadProbe -PathType Leaf)) {
+    throw 'REFUSED: reviewed synthetic-payload probe missing'
+}
 Invoke-OrdinaryProbe $ordinaryProbe
 Invoke-OrdinaryProbe $externalProbe
+Invoke-OrdinaryProbe $payloadProbe
 $noAuthority = 'NO_PRODUCTION_INSTALLER_PROVISIONING_SERVICE_OR_RECEIPT_AUTHORITY'
 $ordinary = Get-Content -LiteralPath (Join-Path $control 'ordinary-proof.json') `
     -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 $external = Get-Content -LiteralPath (Join-Path $control 'os-parent-proof.json') `
+    -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+$staged = Get-Content -LiteralPath (Join-Path $control 'payload-proof.json') `
     -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 if ($ordinary.status -ne 'DISPOSABLE_ORDINARY_TOKEN_DENIALS_OBSERVED_UNATTESTED' -or
     $ordinary.ordinary_user_sid -cne $sid -or
@@ -167,7 +204,20 @@ if ($ordinary.status -ne 'DISPOSABLE_ORDINARY_TOKEN_DENIALS_OBSERVED_UNATTESTED'
     $external.os_parent_production_custody_verified -cne $false -or
     $external.installed_service_accepted -cne $false -or
     $external.authorized_to_install -cne $false -or
-    $external.authority -ne $noAuthority) {
+    $external.authority -ne $noAuthority -or
+    $staged.status -ne 'SYNTHETIC_PAYLOAD_MUTATION_RIGHTS_DENIED_UNATTESTED' -or
+    $staged.ordinary_user_sid -cne $sid -or
+    $staged.positive_write_data_access -cne $true -or
+    $staged.positive_append_data_access -cne $true -or
+    $staged.positive_delete_access -cne $true -or
+    $staged.synthetic_payload_mutation_denials -ne 4 -or
+    $staged.payload_sha256 -cne $expectedPayloadSha256 -or
+    $staged.no_payload_mutation_performed -cne $true -or
+    $staged.release_artifact_signature_verified -cne $false -or
+    $staged.protected_executable_custody_verified -cne $false -or
+    $staged.installed_service_accepted -cne $false -or
+    $staged.authorized_to_install -cne $false -or
+    $staged.authority -ne $noAuthority) {
     throw 'REFUSED: evidence incomplete or asserts production authority'
 }
 if ((Get-Acl -LiteralPath $parent -ErrorAction Stop).Sddl -cne $parentSddlBefore) {
@@ -180,6 +230,22 @@ foreach ($path in $paths) {
         throw 'REFUSED: protected sandbox path replaced'
     }
 }
+# Independently re-read payload bytes after the standard user's handle probes.
+$after = Get-Item -LiteralPath $payloadPath -Force -ErrorAction Stop
+if ($after.PSIsContainer -or
+    (($after.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) -or
+    $after.Length -ne $syntheticBytes.Length -or
+    (Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+        $expectedPayloadSha256 -or
+    ([Convert]::ToBase64String([IO.File]::ReadAllBytes($payloadPath)) -cne
+        [Convert]::ToBase64String($syntheticBytes))) {
+    throw 'REFUSED: synthetic staged payload bytes changed'
+}
+$afterAcl = Get-Acl -LiteralPath $payloadPath -ErrorAction Stop
+if ($afterAcl.Sddl -cne $payloadAcl.Sddl) {
+    throw 'REFUSED: synthetic staged payload ACL changed'
+}
+Write-Host 'SLICE140_EPHEMERAL_SYNTHETIC_PAYLOAD_MUTATION_RIGHTS_DENIED'
 Write-Host 'SLICE139_EPHEMERAL_OS_ANCHORED_PARENT_DELETE_RIGHTS_DENIED'
 Write-Host $noAuthority
 # Account and sandbox persist solely for the lifetime of the ephemeral runner.

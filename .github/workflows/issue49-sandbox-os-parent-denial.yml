@@ -7,6 +7,7 @@ on:
     paths:
       - native/windows/bootstrap/qualify_sandbox_os_parent_ci.ps1
       - native/windows/bootstrap/sandbox_os_parent_probe.ps1
+      - native/windows/bootstrap/sandbox_protected_payload_probe.ps1
       - .github/workflows/issue49-sandbox-os-parent-denial.yml
   workflow_dispatch:
 
