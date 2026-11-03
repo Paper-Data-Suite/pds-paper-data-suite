@@ -245,6 +245,74 @@ $afterAcl = Get-Acl -LiteralPath $payloadPath -ErrorAction Stop
 if ($afterAcl.Sddl -cne $payloadAcl.Sddl) {
     throw 'REFUSED: synthetic staged payload ACL changed'
 }
+# Slice 141: isolated RSA-PSS test-signing and independent verifier process.
+# This uses a newly generated key for a SYNTHETIC file, never publisher trust.
+$signer = Join-Path $PSScriptRoot 'sandbox_ephemeral_signer.ps1'
+$verifier = Join-Path $PSScriptRoot 'sandbox_ephemeral_signature_verify.ps1'
+foreach ($script in @($signer, $verifier)) {
+    if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
+        throw 'REFUSED: fixed synthetic cryptography script missing'
+    }
+}
+$signed = @(& $pwsh -NoProfile -NonInteractive -File $signer `
+    -SandboxRoot $root -Acknowledge 'EPHEMERAL_RSA_PSS_TEST_ONLY')
+$signedCode = $LASTEXITCODE
+if ($signedCode -ne 2 -or $signed.Count -ne 2) {
+    throw 'REFUSED: ephemeral synthetic signing did not complete'
+}
+$signReport = $signed[0] | ConvertFrom-Json -ErrorAction Stop
+if ($signReport.status -ne 'EPHEMERAL_RSA_PSS_SIGNATURE_AUTHORED_TEST_ONLY' -or
+    $signReport.test_only_signature_written -cne $true -or
+    $signReport.private_key_written_to_disk -cne $false -or
+    $signReport.independently_authenticated_publisher -cne $false -or
+    $signReport.trusted_production_key_provisioned -cne $false -or
+    $signReport.authorized_to_install -cne $false -or
+    $signReport.authority -ne $noAuthority -or $signed[1] -ne $noAuthority) {
+    throw 'REFUSED: synthetic signer asserted unsupported publisher authority'
+}
+$trustPublicPath = Join-Path $root `
+    'protected-state\service-state\test-only-publisher-public.spki'
+$trustSigPath = Join-Path $root `
+    'protected-state\service-state\test-only-payload.detached.sig'
+$publicBefore = [IO.File]::ReadAllBytes($trustPublicPath)
+$signatureBefore = [IO.File]::ReadAllBytes($trustSigPath)
+$publicSddl = (Get-Acl -LiteralPath $trustPublicPath -ErrorAction Stop).Sddl
+$signatureSddl = (Get-Acl -LiteralPath $trustSigPath -ErrorAction Stop).Sddl
+$verified = @(& $pwsh -NoProfile -NonInteractive -File $verifier `
+    -SandboxRoot $root)
+$verifiedCode = $LASTEXITCODE
+if ($verifiedCode -ne 2 -or $verified.Count -ne 2) {
+    throw 'REFUSED: separate synthetic RSA-PSS verifier did not qualify'
+}
+$verifyReport = $verified[0] | ConvertFrom-Json -ErrorAction Stop
+if ($verifyReport.status -ne 'EPHEMERAL_RSA_PSS_VALID_AND_THREE_TAMPERS_DENIED' -or
+    $verifyReport.valid_signature_verified -cne $true -or
+    $verifyReport.changed_payload_rejected -cne $true -or
+    $verifyReport.changed_signature_rejected -cne $true -or
+    $verifyReport.substituted_public_key_rejected -cne $true -or
+    $verifyReport.independent_publisher_provenance_verified -cne $false -or
+    $verifyReport.trusted_release_artifact_verified -cne $false -or
+    $verifyReport.production_rollback_protection_verified -cne $false -or
+    $verifyReport.authorized_to_install -cne $false -or
+    $verifyReport.authority -ne $noAuthority -or
+    $verified[1] -ne $noAuthority) {
+    throw 'REFUSED: test signature result promoted to production authority'
+}
+# Readback after the independent verifier; no protected artifacts may change.
+if ((Get-Acl -LiteralPath $trustPublicPath -ErrorAction Stop).Sddl -cne
+        $publicSddl -or
+    (Get-Acl -LiteralPath $trustSigPath -ErrorAction Stop).Sddl -cne
+        $signatureSddl -or
+    [Convert]::ToBase64String([IO.File]::ReadAllBytes($trustPublicPath)) -cne
+        [Convert]::ToBase64String($publicBefore) -or
+    [Convert]::ToBase64String([IO.File]::ReadAllBytes($trustSigPath)) -cne
+        [Convert]::ToBase64String($signatureBefore) -or
+    [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
+        [IO.File]::ReadAllBytes($payloadPath))).ToLowerInvariant() -cne
+        $expectedPayloadSha256) {
+    throw 'REFUSED: synthetic signed evidence or source bytes changed'
+}
+Write-Host 'SLICE141_EPHEMERAL_RSA_PSS_VALID_AND_TAMPERS_REJECTED'
 Write-Host 'SLICE140_EPHEMERAL_SYNTHETIC_PAYLOAD_MUTATION_RIGHTS_DENIED'
 Write-Host 'SLICE139_EPHEMERAL_OS_ANCHORED_PARENT_DELETE_RIGHTS_DENIED'
 Write-Host $noAuthority
