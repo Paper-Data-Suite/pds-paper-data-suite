@@ -1,0 +1,34 @@
+name: Suite 49 disposable ACL sandbox provisioning
+
+on:
+  push:
+    branches:
+      - 49-evergreen-launch-and-supported-composition-upgrades
+    paths:
+      - native/windows/bootstrap/sandbox_acl_provisioning.ps1
+      - native/windows/bootstrap/qualify_sandbox_acl.ps1
+      - .github/workflows/issue49-sandbox-acl-provisioning.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox-provisioning:
+    name: Disposable Windows ACL sandbox only
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Exercise isolated ACL creation and independently inspect DACLs
+        shell: pwsh
+        run: |
+          ./native/windows/bootstrap/qualify_sandbox_acl.ps1
+      - name: Verify repository unchanged
+        shell: pwsh
+        run: |
+          git diff --check
+          $status = @(git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) {
+            throw 'Disposable provisioning test modified the source tree.'
+          }
