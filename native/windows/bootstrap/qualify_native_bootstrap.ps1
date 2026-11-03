@@ -57,6 +57,11 @@ if (-not (Test-Path -LiteralPath (Join-Path $source 'signature_probe.cpp') -Path
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_PUBLISHER_PIN_CONTRACT_COMPILATION_FAILED.'
 }
+# Slice 127: compile pure certificate/SPKI-to-claimed-pin comparison tests.
+& $cmake.Source --build $build --config Release --target pds_publisher_pin_evidence_test --parallel 2
+if ($LASTEXITCODE -ne 0) {
+    throw 'BLOCKED_NATIVE_PUBLISHER_EVIDENCE_COMPILATION_FAILED.'
+}
 & $cmake.Source --build $build --config Release --target pds_windows_signature_probe --parallel 2
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_SIGNATURE_WITNESS_COMPILATION_FAILED.'
@@ -137,6 +142,19 @@ if ($pinCode -ne 0 -or $pinResult.Count -ne 1 -or
 }
 Write-Host "SLICE126_NATIVE_PUBLISHER_PIN_CONTRACT_PASSED_$Architecture"
 
+# Native signer/pin evidence comparison cannot authenticate unprotected policy.
+$evidenceExe = Join-Path $build 'Release\pds_publisher_pin_evidence_test.exe'
+if (-not (Test-Path -LiteralPath $evidenceExe -PathType Leaf)) {
+    throw 'Native publisher evidence contract executable missing.'
+}
+$evidenceResult = @(& $evidenceExe)
+$evidenceCode = $LASTEXITCODE
+if ($evidenceCode -ne 0 -or $evidenceResult.Count -ne 1 -or
+    $evidenceResult[0] -ne 'SLICE127_NATIVE_PUBLISHER_EVIDENCE_TESTS_PASSED') {
+    throw 'Native publisher certificate/SPKI evidence comparison tests failed.'
+}
+Write-Host "SLICE127_NATIVE_PUBLISHER_EVIDENCE_PASSED_$Architecture"
+
 # Execute native C++ parser/relationship negative tests on the actual target CPU.
 # Cross-compiled ARM64 is tested by the separate native Windows 11 ARM64 job.
 $contractOutput = @(& $contractExe)
@@ -204,6 +222,7 @@ if ($sigLines.Count -ne 2 -or $sigCode -ne 1) {
 $sig = $sigLines[0] | ConvertFrom-Json -ErrorAction Stop
 if ($sig.status -ne 'NATIVE_SIGNATURE_NOT_TRUSTED' -or
     $sig.wintrust_chain_observed -cne $false -or
+    $sig.signer_evidence_observed -cne $false -or
     $sig.publisher_pin_verified -cne $false -or
     $sig.authorized_to_install -cne $false -or
     $sig.authority -ne $noAuthority -or
@@ -217,6 +236,7 @@ if ($sigRefusalCode -ne 2 -or $sigRefused.Count -ne 2) {
 }
 $sigDenied = $sigRefused[0] | ConvertFrom-Json -ErrorAction Stop
 if ($sigDenied.status -ne 'REFUSED_UNSUPPORTED_SIGNATURE_ARGUMENT' -or
+    $sigDenied.signer_evidence_observed -cne $false -or
     $sigDenied.authorized_to_install -cne $false -or
     $sigRefused[1] -ne $noAuthority) {
     throw 'Native signature witness install denial invalid.'
