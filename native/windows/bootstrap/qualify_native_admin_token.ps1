@@ -56,6 +56,28 @@ if ([System.BitConverter]::ToUInt16($scmBytes, $scmOffset + 4) -ne $expected) {
 }
 Write-Host "SLICE130_SCM_COMPILED_$Architecture"
 
+
+# Slice 131: independently compile and observe current-token OpenService access.
+$accessExe = Join-Path $Build 'Release\pds_windows_service_access_probe.exe'
+& $cmake.Source --build $Build --config Release --target pds_windows_service_access_probe --parallel 2
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $accessExe -PathType Leaf)) {
+    throw 'BLOCKED_SLICE131_NATIVE_SERVICE_ACCESS_COMPILATION'
+}
+$accessBytes = [System.IO.File]::ReadAllBytes($accessExe)
+if ($accessBytes.Length -lt 128 -or $accessBytes[0] -ne 77 -or $accessBytes[1] -ne 90) {
+    throw 'Slice 131 access probe is not an MZ executable.'
+}
+$accessOffset = [System.BitConverter]::ToInt32($accessBytes, 0x3c)
+if ($accessOffset -lt 64 -or $accessOffset -gt ($accessBytes.Length - 24) -or
+    $accessBytes[$accessOffset] -ne 80 -or $accessBytes[$accessOffset + 1] -ne 69 -or
+    $accessBytes[$accessOffset + 2] -ne 0 -or $accessBytes[$accessOffset + 3] -ne 0) {
+    throw 'Slice 131 access probe PE header invalid.'
+}
+if ([System.BitConverter]::ToUInt16($accessBytes, $accessOffset + 4) -ne $expected) {
+    throw 'Slice 131 access probe architecture mismatch.'
+}
+Write-Host "SLICE131_SCM_ACCESS_COMPILED_$Architecture"
+
 $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 if ($hostArchitecture -ne $Architecture) {
     Write-Host "SLICE129_TOKEN_PREFLIGHT_CROSS_BUILD_ONLY_$Architecture"
@@ -135,6 +157,49 @@ if ($scmDenied.status -ne 'REFUSED_UNSUPPORTED_SCM_ARGUMENT' -or
     $scmDenied.authorized_to_provision -cne $false -or
     $scmDeniedLines[1] -ne $NoAuthority) {
     throw 'Slice 130 SCM install refusal invalid.'
+}
+# Cross-compiled ARM64 is never represented as executed runtime coverage.
+# The native ARM64 CI job separately executes this same diagnostic.
+if ($hostArchitecture -eq $Architecture) {
+    $accessLines = @(& $accessExe)
+    $accessCode = $LASTEXITCODE
+    if ($accessCode -notin @(1, 2) -or $accessLines.Count -ne 2) {
+        throw 'Slice 131 service access observation returned invalid status.'
+    }
+    $access = $accessLines[0] | ConvertFrom-Json -ErrorAction Stop
+    $complete = ($access.status -eq 'SCM_CURRENT_TOKEN_ACCESS_OBSERVED_UNVERIFIED')
+    if (($complete -cne ($accessCode -eq 2)) -or
+        $access.native_read_only -cne $true -or
+        $access.access_query_complete -cne $complete -or
+        $access.independent_teacher_token_verified -cne $false -or
+        $access.service_identity_verified -cne $false -or
+        $access.protected_state_write_performed -cne $false -or
+        $access.authorized_to_provision -cne $false -or
+        $access.authorized_to_install -cne $false -or
+        $access.authority -ne $NoAuthority -or
+        $accessLines[1] -ne $NoAuthority) {
+        throw 'Slice 131 current-token observation asserted unsupported authority.'
+    }
+    if ($access.status -notin @(
+        'PROVISIONAL_SERVICE_NOT_INSTALLED_NO_AUTHORITY',
+        'SCM_CURRENT_TOKEN_ACCESS_QUERY_REFUSED_NO_AUTHORITY',
+        'SCM_CURRENT_TOKEN_ACCESS_OBSERVED_UNVERIFIED')) {
+        throw 'Slice 131 unexpected service access status.'
+    }
+    $refusedLines = @(& $accessExe --configure)
+    $refusedCode = $LASTEXITCODE
+    if ($refusedCode -ne 2 -or $refusedLines.Count -ne 2) {
+        throw 'Slice 131 service access probe did not refuse --configure.'
+    }
+    $refused = $refusedLines[0] | ConvertFrom-Json -ErrorAction Stop
+    if ($refused.status -ne 'REFUSED_UNSUPPORTED_SERVICE_ACCESS_ARGUMENT' -or
+        $refused.access_query_complete -cne $false -or
+        $refused.authorized_to_provision -cne $false -or
+        $refused.authorized_to_install -cne $false -or
+        $refusedLines[1] -ne $NoAuthority) {
+        throw 'Slice 131 current-token refusal asserted unsupported authority.'
+    }
+    Write-Host "SLICE131_NATIVE_SCM_CURRENT_TOKEN_NO_AUTHORITY_PASSED_$Architecture"
 }
 Write-Host "SLICE130_NATIVE_SCM_NONAUTHORITY_PASSED_$Architecture"
 exit 0

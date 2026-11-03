@@ -91,3 +91,16 @@ if(MSVC)
 else()
     target_compile_options(pds_windows_service_scm_probe PRIVATE -Wall -Wextra -Werror)
 endif()
+
+# Slice 131: read-only current-token SCM effective open-rights observation.
+# This executable has no ability to change the fixed provisional service.
+add_executable(pds_windows_service_access_probe service_token_access_probe.cpp)
+target_compile_features(pds_windows_service_access_probe PRIVATE cxx_std_17)
+target_compile_definitions(pds_windows_service_access_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(pds_windows_service_access_probe PRIVATE advapi32)
+if(MSVC)
+    target_compile_options(pds_windows_service_access_probe PRIVATE /W4 /WX /permissive- /sdl)
+else()
+    target_compile_options(pds_windows_service_access_probe PRIVATE -Wall -Wextra -Werror)
+endif()
