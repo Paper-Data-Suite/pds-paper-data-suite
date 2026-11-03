@@ -79,3 +79,15 @@ if(MSVC)
 else()
     target_compile_options(pds_windows_pin_admin_preflight PRIVATE -Wall -Wextra -Werror)
 endif()
+
+# Slice 130: read-only fixed-name Windows SCM security inventory.
+add_executable(pds_windows_service_scm_probe service_scm_security_probe.cpp)
+target_compile_features(pds_windows_service_scm_probe PRIVATE cxx_std_17)
+target_compile_definitions(pds_windows_service_scm_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(pds_windows_service_scm_probe PRIVATE advapi32)
+if(MSVC)
+    target_compile_options(pds_windows_service_scm_probe PRIVATE /W4 /WX /permissive- /sdl)
+else()
+    target_compile_options(pds_windows_service_scm_probe PRIVATE -Wall -Wextra -Werror)
+endif()
