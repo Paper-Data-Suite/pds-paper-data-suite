@@ -275,11 +275,15 @@ $trustPublicPath = Join-Path $root `
 $trustSigPath = Join-Path $root `
     'protected-state\service-state\test-only-payload.detached.sig'
 $publicBefore = [IO.File]::ReadAllBytes($trustPublicPath)
+# Capture a session-level pin in the administrator harness BEFORE the separate
+# verifier process.  This does not authenticate the signer who created the key.
+$sessionPublicKeySha256 = [Convert]::ToHexString(
+    [Security.Cryptography.SHA256]::HashData($publicBefore)).ToLowerInvariant()
 $signatureBefore = [IO.File]::ReadAllBytes($trustSigPath)
 $publicSddl = (Get-Acl -LiteralPath $trustPublicPath -ErrorAction Stop).Sddl
 $signatureSddl = (Get-Acl -LiteralPath $trustSigPath -ErrorAction Stop).Sddl
 $verified = @(& $pwsh -NoProfile -NonInteractive -File $verifier `
-    -SandboxRoot $root)
+    -SandboxRoot $root -ExpectedPublicKeySha256 $sessionPublicKeySha256)
 $verifiedCode = $LASTEXITCODE
 if ($verifiedCode -ne 2 -or $verified.Count -ne 2) {
     throw 'REFUSED: separate synthetic RSA-PSS verifier did not qualify'
@@ -290,6 +294,9 @@ if ($verifyReport.status -ne 'EPHEMERAL_RSA_PSS_VALID_AND_THREE_TAMPERS_DENIED' 
     $verifyReport.changed_payload_rejected -cne $true -or
     $verifyReport.changed_signature_rejected -cne $true -or
     $verifyReport.substituted_public_key_rejected -cne $true -or
+    $verifyReport.session_public_key_sha256_match -cne $true -or
+    $verifyReport.self_signed_alternate_key_pair_rejected_by_pin -cne $true -or
+    $verifyReport.independently_provisioned_publisher_pin_verified -cne $false -or
     $verifyReport.independent_publisher_provenance_verified -cne $false -or
     $verifyReport.trusted_release_artifact_verified -cne $false -or
     $verifyReport.production_rollback_protection_verified -cne $false -or
@@ -312,6 +319,7 @@ if ((Get-Acl -LiteralPath $trustPublicPath -ErrorAction Stop).Sddl -cne
         $expectedPayloadSha256) {
     throw 'REFUSED: synthetic signed evidence or source bytes changed'
 }
+Write-Host 'SLICE142_EPHEMERAL_SESSION_PIN_BLOCKS_SELF_SIGNED_SUBSTITUTION'
 Write-Host 'SLICE141_EPHEMERAL_RSA_PSS_VALID_AND_TAMPERS_REJECTED'
 Write-Host 'SLICE140_EPHEMERAL_SYNTHETIC_PAYLOAD_MUTATION_RIGHTS_DENIED'
 Write-Host 'SLICE139_EPHEMERAL_OS_ANCHORED_PARENT_DELETE_RIGHTS_DENIED'
