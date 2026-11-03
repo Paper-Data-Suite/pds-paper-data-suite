@@ -99,6 +99,30 @@ if ([System.BitConverter]::ToUInt16($teacherBytes, $teacherOffset + 4) -ne $expe
 }
 Write-Host "SLICE132_TEACHER_DENIAL_COMPILED_$Architecture"
 
+# Slice 133: separate portable path contract and Win32 SCM/process linkage.
+$imageContractExe = Join-Path $Build 'Release\pds_service_image_contract_test.exe'
+$imageExe = Join-Path $Build 'Release\pds_windows_service_image_probe.exe'
+& $cmake.Source --build $Build --config Release --target pds_service_image_contract_test pds_windows_service_image_probe --parallel 2
+if ($LASTEXITCODE -ne 0 -or
+    -not (Test-Path -LiteralPath $imageContractExe -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $imageExe -PathType Leaf)) {
+    throw 'BLOCKED_SLICE133_NATIVE_IMAGE_BUILD'
+}
+$imageBytes = [System.IO.File]::ReadAllBytes($imageExe)
+if ($imageBytes.Length -lt 128 -or $imageBytes[0] -ne 77 -or $imageBytes[1] -ne 90) {
+    throw 'Slice 133 service image executable is not MZ.'
+}
+$imageOffset = [System.BitConverter]::ToInt32($imageBytes, 0x3c)
+if ($imageOffset -lt 64 -or $imageOffset -gt ($imageBytes.Length - 24) -or
+    $imageBytes[$imageOffset] -ne 80 -or $imageBytes[$imageOffset + 1] -ne 69 -or
+    $imageBytes[$imageOffset + 2] -ne 0 -or $imageBytes[$imageOffset + 3] -ne 0) {
+    throw 'Slice 133 service image probe PE signature invalid.'
+}
+if ([System.BitConverter]::ToUInt16($imageBytes, $imageOffset + 4) -ne $expected) {
+    throw 'Slice 133 service image probe architecture mismatch.'
+}
+Write-Host "SLICE133_SERVICE_IMAGE_COMPILED_$Architecture"
+
 $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 if ($hostArchitecture -ne $Architecture) {
     Write-Host "SLICE129_TOKEN_PREFLIGHT_CROSS_BUILD_ONLY_$Architecture"
@@ -270,5 +294,54 @@ if ($teacherDenied.status -ne 'REFUSED_UNSUPPORTED_TEACHER_ACCEPTANCE_ARGUMENT' 
     throw 'Slice 132 teacher witness argument refusal invalid.'
 }
 Write-Host "SLICE132_NATIVE_TEACHER_DENIAL_NONAUTHORITY_PASSED_$Architecture"
+# Portable path contract executes only on the actual target architecture.
+$imageContract = @(& $imageContractExe)
+$imageContractCode = $LASTEXITCODE
+if ($imageContractCode -ne 0 -or $imageContract.Count -ne 1 -or
+    $imageContract[0] -ne 'SLICE133_NATIVE_SERVICE_IMAGE_CONTRACT_TESTS_PASSED') {
+    throw 'Slice 133 canonical image contract failed.'
+}
+$imageLines = @(& $imageExe)
+$imageCode = $LASTEXITCODE
+if ($imageCode -notin @(1, 2) -or $imageLines.Count -ne 2) {
+    throw 'Slice 133 service image observation returned invalid status.'
+}
+$image = $imageLines[0] | ConvertFrom-Json -ErrorAction Stop
+$imageObserved = $image.status -eq 'SCM_PROCESS_IMAGE_LINKAGE_OBSERVED_UNVERIFIED'
+if ($image.status -notin @(
+    'PROVISIONAL_SERVICE_NOT_INSTALLED_NO_IMAGE_ACCEPTANCE',
+    'SERVICE_NOT_RUNNING_NO_IMAGE_ACCEPTANCE',
+    'SERVICE_IMAGE_QUERY_REFUSED_NO_ACCEPTANCE',
+    'SCM_PROCESS_IMAGE_LINKAGE_OBSERVED_UNVERIFIED') -or
+    ($imageCode -eq 2) -cne $imageObserved -or
+    $image.native_read_only -cne $true -or
+    $image.installed_service_identity_verified -cne $false -or
+    $image.executable_custody_verified -cne $false -or
+    $image.independent_teacher_identity_attested -cne $false -or
+    $image.publisher_pin_verified -cne $false -or
+    $image.protected_write_performed -cne $false -or
+    $image.authorized_to_install -cne $false -or
+    $image.authority -ne $NoAuthority -or $imageLines[1] -ne $NoAuthority) {
+    throw 'Slice 133 image observation asserted unsupported authority.'
+}
+if ($imageObserved -and ($image.service_present -cne $true -or
+    $image.running_process_observed -cne $true -or
+    $image.scm_process_image_agreement_observed -cne $true -or
+    $image.held_image_attributes_observed -cne $true)) {
+    throw 'Slice 133 positive image observation contradicts its evidence.'
+}
+$imageRefusal = @(& $imageExe --approve)
+$imageRefusalCode = $LASTEXITCODE
+if ($imageRefusalCode -ne 2 -or $imageRefusal.Count -ne 2) {
+    throw 'Slice 133 image probe did not refuse --approve.'
+}
+$imageDenied = $imageRefusal[0] | ConvertFrom-Json -ErrorAction Stop
+if ($imageDenied.status -ne 'REFUSED_UNSUPPORTED_SERVICE_IMAGE_ARGUMENT' -or
+    $imageDenied.authorized_to_install -cne $false -or
+    $imageDenied.installed_service_identity_verified -cne $false -or
+    $imageRefusal[1] -ne $NoAuthority) {
+    throw 'Slice 133 image probe argument refusal invalid.'
+}
+Write-Host "SLICE133_NATIVE_SERVICE_IMAGE_NONAUTHORITY_PASSED_$Architecture"
 Write-Host "SLICE130_NATIVE_SCM_NONAUTHORITY_PASSED_$Architecture"
 exit 0
