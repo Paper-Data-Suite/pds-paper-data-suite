@@ -6,6 +6,7 @@
 #include <winsvc.h>
 #include <knownfolders.h>
 #include <shlobj.h>
+#include <aclapi.h>
 
 #include <array>
 #include <cstddef>
@@ -30,6 +31,16 @@ public:
     [[nodiscard]] SC_HANDLE get() const noexcept { return h_; }
 private:
     SC_HANDLE h_;
+};
+class OwnedSecurityDescriptor final {
+public:
+    explicit OwnedSecurityDescriptor(PSECURITY_DESCRIPTOR value) noexcept : value_(value) {}
+    ~OwnedSecurityDescriptor() { if (value_ != nullptr) (void)LocalFree(value_); }
+    OwnedSecurityDescriptor(const OwnedSecurityDescriptor&) = delete;
+    OwnedSecurityDescriptor& operator=(const OwnedSecurityDescriptor&) = delete;
+    [[nodiscard]] PSECURITY_DESCRIPTOR get() const noexcept { return value_; }
+private:
+    PSECURITY_DESCRIPTOR value_;
 };
 class Handle final {
 public:
@@ -56,6 +67,9 @@ struct Observation {
     bool running_process_observed = false;
     bool path_agreement = false;
     bool held_file_observed = false;
+    bool image_owner_sid_observed = false;
+    bool image_dacl_observed = false;
+    bool image_mutation_allow_ace_observed = false;
 };
 enum class Result { absent, not_running, observed, refused };
 
@@ -74,6 +88,60 @@ bool read_configured_image(const std::vector<BYTE>& buffer, const wchar_t* point
     while (length < capacity && pointer[length] != L'\0') ++length;
     if (length == capacity || length == 0 || length > 4098) return false;
     into.assign(pointer, length);
+    return true;
+}
+
+// The held executable handle supplies the security descriptor: no filename
+// re-open, no caller-supplied SDDL, and no ACL modification.  ACE inspection is
+// descriptive; evaluating a real teacher token's effective rights is separate.
+bool observe_image_security(HANDLE image, Observation& observed) {
+    PSID owner = nullptr;
+    PACL dacl = nullptr;
+    PSECURITY_DESCRIPTOR raw_descriptor = nullptr;
+    const DWORD result = GetSecurityInfo(image, SE_FILE_OBJECT,
+        OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        &owner, nullptr, &dacl, nullptr, &raw_descriptor);
+    const OwnedSecurityDescriptor descriptor(raw_descriptor);
+    if (result != ERROR_SUCCESS || descriptor.get() == nullptr ||
+        !IsValidSecurityDescriptor(descriptor.get()) ||
+        GetSecurityDescriptorLength(descriptor.get()) > 8192 ||
+        owner == nullptr || !IsValidSid(owner)) return false;
+    BOOL present = FALSE;
+    BOOL defaulted = FALSE;
+    PACL checked_dacl = nullptr;
+    if (!GetSecurityDescriptorDacl(descriptor.get(), &present, &checked_dacl,
+                                    &defaulted) ||
+        !present || checked_dacl == nullptr || checked_dacl != dacl ||
+        !IsValidAcl(checked_dacl)) return false;
+    ACL_SIZE_INFORMATION size{};
+    if (!GetAclInformation(checked_dacl, &size, sizeof(size),
+                           AclSizeInformation) || size.AceCount > 128) return false;
+    constexpr DWORD kMutationRights = FILE_WRITE_DATA | FILE_APPEND_DATA |
+        FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | DELETE | WRITE_DAC |
+        WRITE_OWNER | GENERIC_WRITE | GENERIC_ALL;
+    bool mutation_ace = false;
+    for (DWORD i = 0; i < size.AceCount; ++i) {
+        void* raw_ace = nullptr;
+        if (!GetAce(checked_dacl, i, &raw_ace) || raw_ace == nullptr) return false;
+        const auto* header = static_cast<const ACE_HEADER*>(raw_ace);
+        if (header->AceType != ACCESS_ALLOWED_ACE_TYPE &&
+            header->AceType != ACCESS_DENIED_ACE_TYPE) return false;
+        // A standard access ACE stores its SID at SidStart (the same layout
+        // in allowed and denied ACEs). Validate SID bounds before reading it.
+        constexpr std::size_t kSidOffset = offsetof(ACCESS_ALLOWED_ACE, SidStart);
+        if (header->AceSize < kSidOffset + 8) return false;
+        const auto* ace = static_cast<const ACCESS_ALLOWED_ACE*>(raw_ace);
+        const auto* sid = reinterpret_cast<const SID*>(&ace->SidStart);
+        const DWORD sid_size = GetSidLengthRequired(sid->SubAuthorityCount);
+        if (sid_size > header->AceSize - kSidOffset || !IsValidSid(
+                const_cast<SID*>(sid))) return false;
+        if (header->AceType == ACCESS_ALLOWED_ACE_TYPE &&
+            (header->AceFlags & INHERIT_ONLY_ACE) == 0 &&
+            (ace->Mask & kMutationRights) != 0) mutation_ace = true;
+    }
+    observed.image_owner_sid_observed = true;
+    observed.image_dacl_observed = true;
+    observed.image_mutation_allow_ace_observed = mutation_ace;
     return true;
 }
 
@@ -157,6 +225,7 @@ Result inspect(Observation& found) {
         !pds_service_image_linkage::detail::equal_ascii_nocase(
             observed_process, final_dos)) return Result::refused;
     found.held_file_observed = true;
+    if (!observe_image_security(image.get(), found)) return Result::refused;
     return Result::observed;
 }
 
@@ -170,6 +239,12 @@ void emit(const char* status, const Observation& o) {
               << (o.path_agreement ? "true" : "false")
               << ",\"held_image_attributes_observed\":"
               << (o.held_file_observed ? "true" : "false")
+              << ",\"image_owner_sid_observed\":"
+              << (o.image_owner_sid_observed ? "true" : "false")
+              << ",\"image_dacl_observed\":"
+              << (o.image_dacl_observed ? "true" : "false")
+              << ",\"image_mutation_allow_ace_observed\":"
+              << (o.image_mutation_allow_ace_observed ? "true" : "false")
               << ",\"installed_service_identity_verified\":false"
               << ",\"executable_custody_verified\":false"
               << ",\"independent_teacher_identity_attested\":false"

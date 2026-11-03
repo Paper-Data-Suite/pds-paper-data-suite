@@ -324,6 +324,13 @@ if ($image.status -notin @(
     $image.authority -ne $NoAuthority -or $imageLines[1] -ne $NoAuthority) {
     throw 'Slice 133 image observation asserted unsupported authority.'
 }
+# Slice 134: owner and DACL observation must be present on a positive image
+# result. The presence of write-capable allow ACEs is metadata, not a verdict.
+if ($image.image_owner_sid_observed -cne $imageObserved -or
+    $image.image_dacl_observed -cne $imageObserved -or
+    $image.image_mutation_allow_ace_observed -isnot [bool]) {
+    throw 'Slice 134 held image ACL evidence inconsistent with image result.'
+}
 if ($imageObserved -and ($image.service_present -cne $true -or
     $image.running_process_observed -cne $true -or
     $image.scm_process_image_agreement_observed -cne $true -or
@@ -339,9 +346,12 @@ $imageDenied = $imageRefusal[0] | ConvertFrom-Json -ErrorAction Stop
 if ($imageDenied.status -ne 'REFUSED_UNSUPPORTED_SERVICE_IMAGE_ARGUMENT' -or
     $imageDenied.authorized_to_install -cne $false -or
     $imageDenied.installed_service_identity_verified -cne $false -or
+    $imageDenied.image_owner_sid_observed -cne $false -or
+    $imageDenied.image_dacl_observed -cne $false -or
     $imageRefusal[1] -ne $NoAuthority) {
     throw 'Slice 133 image probe argument refusal invalid.'
 }
+Write-Host "SLICE134_NATIVE_HELD_IMAGE_ACL_NONAUTHORITY_PASSED_$Architecture"
 Write-Host "SLICE133_NATIVE_SERVICE_IMAGE_NONAUTHORITY_PASSED_$Architecture"
 Write-Host "SLICE130_NATIVE_SCM_NONAUTHORITY_PASSED_$Architecture"
 exit 0
