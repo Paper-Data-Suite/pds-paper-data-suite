@@ -54,3 +54,15 @@ if(MSVC)
 else()
     target_compile_options(pds_publisher_pin_evidence_test PRIVATE -Wall -Wextra -Werror)
 endif()
+
+# Slice 128: read-only fixed-path publisher pin claim observation.
+# No publisher approval, provisioning, installation, or trust root mutation.
+add_executable(pds_windows_publisher_pin_custody_probe publisher_pin_custody_probe.cpp)
+target_compile_features(pds_windows_publisher_pin_custody_probe PRIVATE cxx_std_17)
+target_compile_definitions(pds_windows_publisher_pin_custody_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(pds_windows_publisher_pin_custody_probe PRIVATE advapi32 shell32 ole32)
+if(MSVC)
+    target_compile_options(pds_windows_publisher_pin_custody_probe PRIVATE /W4 /WX /permissive- /sdl)
+else()
+    target_compile_options(pds_windows_publisher_pin_custody_probe PRIVATE -Wall -Wextra -Werror)
+endif()

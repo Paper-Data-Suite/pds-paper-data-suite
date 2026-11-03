@@ -66,6 +66,19 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'BLOCKED_NATIVE_SIGNATURE_WITNESS_COMPILATION_FAILED.'
 }
+# Slice 128: a separate native, non-authorizing fixed-path custody probe.
+if (-not (Test-Path -LiteralPath (Join-Path $source 'publisher_pin_custody_probe.cpp') -PathType Leaf)) {
+    throw 'Publisher-pin custody probe source unavailable.'
+}
+& $cmake.Source --build $build --config Release --target pds_windows_publisher_pin_custody_probe --parallel 2
+if ($LASTEXITCODE -ne 0) {
+    throw 'BLOCKED_NATIVE_PIN_CUSTODY_PROBE_COMPILATION_FAILED.'
+}
+$pinCustodyExe = Join-Path $build 'Release\pds_windows_publisher_pin_custody_probe.exe'
+if (-not (Test-Path -LiteralPath $pinCustodyExe -PathType Leaf)) {
+    throw 'Native publisher-pin custody probe executable unavailable.'
+}
+
 $signatureExe = Join-Path $build 'Release\pds_windows_signature_probe.exe'
 if (-not (Test-Path -LiteralPath $signatureExe -PathType Leaf)) {
     throw 'Compiled native signature witness missing.'
@@ -110,6 +123,22 @@ $sigMachine = [System.BitConverter]::ToUInt16($sigImage, $sigPeOffset + 4)
 if ($sigMachine -ne $expectedMachine) {
     throw 'Native signature witness target architecture mismatch.'
 }
+# Check the custody probe's actual PE machine type as well.
+$pinImage = [System.IO.File]::ReadAllBytes($pinCustodyExe)
+if ($pinImage.Length -lt 128 -or $pinImage[0] -ne 77 -or $pinImage[1] -ne 90) {
+    throw 'Native publisher pin custody probe lacks MZ signature.'
+}
+$pinOffset = [System.BitConverter]::ToInt32($pinImage, 0x3c)
+if ($pinOffset -lt 64 -or $pinOffset -gt ($pinImage.Length - 24) -or
+    $pinImage[$pinOffset] -ne 80 -or $pinImage[$pinOffset + 1] -ne 69 -or
+    $pinImage[$pinOffset + 2] -ne 0 -or $pinImage[$pinOffset + 3] -ne 0) {
+    throw 'Native publisher pin custody probe has invalid PE header.'
+}
+$pinMachine = [System.BitConverter]::ToUInt16($pinImage, $pinOffset + 4)
+if ($pinMachine -ne $expectedMachine) {
+    throw 'Publisher pin custody probe PE architecture mismatch.'
+}
+Write-Host "SLICE128_NATIVE_PIN_CUSTODY_TARGET_VERIFIED_$Architecture"
 Write-Host "SLICE125_NATIVE_SIGNATURE_TARGET_VERIFIED_$Architecture"
 $digest = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "SLICE122_NATIVE_BINARY_SHA256: $digest"
@@ -242,6 +271,43 @@ if ($sigDenied.status -ne 'REFUSED_UNSUPPORTED_SIGNATURE_ARGUMENT' -or
     throw 'Native signature witness install denial invalid.'
 }
 Write-Host 'SLICE125_NATIVE_UNSIGNED_SIGNATURE_AND_INSTALL_REFUSAL_PASSED'
+
+# No provisioning occurs in CI. Both absence and observation are non-authorizing.
+$pinLines = @(& $pinCustodyExe)
+$pinCode = $LASTEXITCODE
+if ($pinLines.Count -ne 2 -or $pinCode -notin @(1, 2)) {
+    throw 'Native publisher-pin custody probe returned invalid result.'
+}
+$pinResult = $pinLines[0] | ConvertFrom-Json -ErrorAction Stop
+$pinExpected = if ($pinCode -eq 1) {
+    'NATIVE_PIN_CLAIM_NOT_OBSERVED'
+} else {
+    'NATIVE_PIN_CLAIM_OBSERVED_CUSTODY_UNPROVEN'
+}
+if ($pinResult.status -ne $pinExpected -or
+    $pinResult.native_read_only -cne $true -or
+    $pinResult.publisher_pin_claim_observed -cne ($pinCode -eq 2) -or
+    $pinResult.independent_provisioner_authenticated -cne $false -or
+    $pinResult.rollback_protection_verified -cne $false -or
+    $pinResult.publisher_pin_verified -cne $false -or
+    $pinResult.authorized_to_install -cne $false -or
+    $pinResult.authority -ne $noAuthority -or
+    $pinLines[1] -ne $noAuthority) {
+    throw 'Publisher pin custody probe asserted unexpected authority.'
+}
+$pinDeniedLines = @(& $pinCustodyExe --install)
+$pinDeniedCode = $LASTEXITCODE
+if ($pinDeniedCode -ne 2 -or $pinDeniedLines.Count -ne 2) {
+    throw 'Publisher pin custody probe did not refuse --install.'
+}
+$pinDenied = $pinDeniedLines[0] | ConvertFrom-Json -ErrorAction Stop
+if ($pinDenied.status -ne 'REFUSED_UNSUPPORTED_PUBLISHER_PIN_ARGUMENT' -or
+    $pinDenied.authorized_to_install -cne $false -or
+    $pinDenied.publisher_pin_verified -cne $false -or
+    $pinDeniedLines[1] -ne $noAuthority) {
+    throw 'Publisher pin custody probe install refusal invalid.'
+}
+Write-Host "SLICE128_NATIVE_PIN_CUSTODY_NO_AUTHORITY_PASSED_$Architecture"
 
 if ($Architecture -eq 'ARM64' -and $RequireRuntime) {
     Write-Host 'SLICE123_NATIVE_ARM64_RUNTIME_PASSED'
