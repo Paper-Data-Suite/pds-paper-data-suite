@@ -78,6 +78,27 @@ if ([System.BitConverter]::ToUInt16($accessBytes, $accessOffset + 4) -ne $expect
 }
 Write-Host "SLICE131_SCM_ACCESS_COMPILED_$Architecture"
 
+# Slice 132: compile a separate ordinary-primary-token/SCM denial witness.
+$teacherExe = Join-Path $Build 'Release\pds_windows_teacher_denial_probe.exe'
+& $cmake.Source --build $Build --config Release --target pds_windows_teacher_denial_probe --parallel 2
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $teacherExe -PathType Leaf)) {
+    throw 'BLOCKED_SLICE132_NATIVE_TEACHER_DENIAL_COMPILATION'
+}
+$teacherBytes = [System.IO.File]::ReadAllBytes($teacherExe)
+if ($teacherBytes.Length -lt 128 -or $teacherBytes[0] -ne 77 -or $teacherBytes[1] -ne 90) {
+    throw 'Slice 132 teacher denial probe is not an MZ executable.'
+}
+$teacherOffset = [System.BitConverter]::ToInt32($teacherBytes, 0x3c)
+if ($teacherOffset -lt 64 -or $teacherOffset -gt ($teacherBytes.Length - 24) -or
+    $teacherBytes[$teacherOffset] -ne 80 -or $teacherBytes[$teacherOffset + 1] -ne 69 -or
+    $teacherBytes[$teacherOffset + 2] -ne 0 -or $teacherBytes[$teacherOffset + 3] -ne 0) {
+    throw 'Slice 132 teacher denial probe PE header invalid.'
+}
+if ([System.BitConverter]::ToUInt16($teacherBytes, $teacherOffset + 4) -ne $expected) {
+    throw 'Slice 132 teacher denial probe architecture mismatch.'
+}
+Write-Host "SLICE132_TEACHER_DENIAL_COMPILED_$Architecture"
+
 $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 if ($hostArchitecture -ne $Architecture) {
     Write-Host "SLICE129_TOKEN_PREFLIGHT_CROSS_BUILD_ONLY_$Architecture"
@@ -201,5 +222,53 @@ if ($hostArchitecture -eq $Architecture) {
     }
     Write-Host "SLICE131_NATIVE_SCM_CURRENT_TOKEN_NO_AUTHORITY_PASSED_$Architecture"
 }
+# Real source-only witness, not a separately authenticated ordinary user.
+$teacherLines = @(& $teacherExe)
+$teacherCode = $LASTEXITCODE
+if ($teacherCode -notin @(1, 2) -or $teacherLines.Count -ne 2) {
+    throw 'Slice 132 teacher denial probe returned invalid status.'
+}
+$teacher = $teacherLines[0] | ConvertFrom-Json -ErrorAction Stop
+$allowedStatuses = @(
+    'ORDINARY_TOKEN_QUERY_REFUSED_NO_ACCEPTANCE',
+    'CURRENT_TOKEN_NOT_ORDINARY_NO_ACCEPTANCE',
+    'SERVICE_NOT_INSTALLED_NO_TEACHER_ACCEPTANCE',
+    'SERVICE_RIGHTS_QUERY_REFUSED_NO_ACCEPTANCE',
+    'DANGEROUS_SCM_RIGHT_GRANTED_NO_ACCEPTANCE',
+    'ALL_EIGHT_SCM_DENIALS_OBSERVED_UNATTESTED'
+)
+$denials = $teacher.status -eq 'ALL_EIGHT_SCM_DENIALS_OBSERVED_UNATTESTED'
+if ($teacher.status -notin $allowedStatuses -or
+    ($teacherCode -eq 2) -cne $denials -or
+    $teacher.native_read_only -cne $true -or
+    $teacher.independent_teacher_identity_attested -cne $false -or
+    $teacher.installed_service_identity_verified -cne $false -or
+    $teacher.publisher_pin_provisioned -cne $false -or
+    $teacher.protected_write_performed -cne $false -or
+    $teacher.authorized_to_install -cne $false -or
+    $teacher.authority -ne $NoAuthority -or
+    $teacherLines[1] -ne $NoAuthority) {
+    throw 'Slice 132 teacher witness claimed unsupported authority.'
+}
+if ($denials -and ($teacher.service_present -cne $true -or
+    $teacher.ordinary_primary_token_observed -cne $true -or
+    $teacher.access_checks_complete -cne $true -or
+    $teacher.all_eight_dangerous_rights_denied -cne $true -or
+    $teacher.any_dangerous_right_granted -cne $false)) {
+    throw 'Slice 132 denial status contradicts its evidence.'
+}
+$teacherDeniedLines = @(& $teacherExe --accept)
+$teacherDeniedCode = $LASTEXITCODE
+if ($teacherDeniedCode -ne 2 -or $teacherDeniedLines.Count -ne 2) {
+    throw 'Slice 132 teacher witness did not refuse --accept.'
+}
+$teacherDenied = $teacherDeniedLines[0] | ConvertFrom-Json -ErrorAction Stop
+if ($teacherDenied.status -ne 'REFUSED_UNSUPPORTED_TEACHER_ACCEPTANCE_ARGUMENT' -or
+    $teacherDenied.authorized_to_install -cne $false -or
+    $teacherDenied.independent_teacher_identity_attested -cne $false -or
+    $teacherDeniedLines[1] -ne $NoAuthority) {
+    throw 'Slice 132 teacher witness argument refusal invalid.'
+}
+Write-Host "SLICE132_NATIVE_TEACHER_DENIAL_NONAUTHORITY_PASSED_$Architecture"
 Write-Host "SLICE130_NATIVE_SCM_NONAUTHORITY_PASSED_$Architecture"
 exit 0

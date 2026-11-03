@@ -104,3 +104,16 @@ if(MSVC)
 else()
     target_compile_options(pds_windows_service_access_probe PRIVATE -Wall -Wextra -Werror)
 endif()
+
+# Slice 132: fail-closed ordinary-primary-token and SCM-rights denial witness.
+# This is not an independently authenticated teacher account or installer.
+add_executable(pds_windows_teacher_denial_probe teacher_service_denial_probe.cpp)
+target_compile_features(pds_windows_teacher_denial_probe PRIVATE cxx_std_17)
+target_compile_definitions(pds_windows_teacher_denial_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(pds_windows_teacher_denial_probe PRIVATE advapi32)
+if(MSVC)
+    target_compile_options(pds_windows_teacher_denial_probe PRIVATE /W4 /WX /permissive- /sdl)
+else()
+    target_compile_options(pds_windows_teacher_denial_probe PRIVATE -Wall -Wextra -Werror)
+endif()
