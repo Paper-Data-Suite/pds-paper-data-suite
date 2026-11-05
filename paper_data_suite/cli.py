@@ -25,7 +25,7 @@ from paper_data_suite.compatibility import (
     ReleaseCompatibilityManifest,
     load_release_compatibility_manifest,
 )
-from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
+from paper_data_suite.doctor import render_doctor_report
 from paper_data_suite.evergreen_catalog_preview import (
     CatalogPreviewError,
     inspect_offline_catalog_preview,
@@ -34,6 +34,9 @@ from paper_data_suite.evergreen_local_application_inventory import (
     collect_local_launch_inventory,
 )
 from paper_data_suite.evergreen_local_compatibility import LocalInspectionError
+from paper_data_suite.evergreen_local_doctor import (
+    collect_version_tolerant_doctor_diagnostics as collect_doctor_diagnostics,
+)
 from paper_data_suite.evergreen_local_registry import APPROVED_COMPONENTS
 from paper_data_suite.evergreen_selected_witness_cli import (
     SelectedWitnessCliError,
@@ -704,7 +707,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     arguments = parser.parse_args(argv)
     if arguments.command == "doctor":
-        report = collect_doctor_diagnostics(workspace=arguments.workspace)
+        try:
+            report = collect_doctor_diagnostics(workspace=arguments.workspace)
+        except (LocalInspectionError, OSError, ValueError) as error:
+            detail = str(error)[:300] or error.__class__.__name__
+            print(f"Doctor inspection failed: {detail}", file=sys.stderr)
+            return 1
         print(render_doctor_report(report), end="")
         return report.exit_code
     if arguments.command == "workspace":

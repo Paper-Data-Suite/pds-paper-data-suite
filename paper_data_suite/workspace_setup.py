@@ -9,6 +9,9 @@ from importlib import import_module, metadata
 from pathlib import Path
 from typing import Protocol, cast
 
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
+
 from paper_data_suite.compatibility import (
     ComponentCompatibility,
     ReleaseCompatibilityManifest,
@@ -17,6 +20,12 @@ from paper_data_suite.compatibility import (
 from paper_data_suite.component_inspection import (
     DistributionVersionLookup,
     lookup_distribution_version,
+)
+from paper_data_suite.evergreen_local_compatibility import (
+    CORE_RUNTIME_RANGE,
+    LocalInspectionError,
+    Readiness,
+    inspect_local_compatibility,
 )
 
 ModuleImporter = Callable[[str], object]
@@ -184,13 +193,35 @@ def _qualify_core(
             f"Could not inspect {component.distribution}: {message}"
         ) from error
 
-    if observed != component.version:
+    try:
+        allowed = bool(
+            observed and SpecifierSet(CORE_RUNTIME_RANGE).contains(observed)
+        )
+    except InvalidVersion:
+        allowed = False
+    if not allowed:
         actual = observed or "not installed"
         raise CoreWorkspaceQualificationError(
-            f"Installed {component.distribution} is {actual}; this suite qualifies "
-            f"exactly {component.version}. Use the verified Paper Data Suite "
-            "bootstrap/update workflow to restore the qualified environment."
+            f"Installed {component.distribution} is {actual}; supported Core "
+            f"runtime range is {CORE_RUNTIME_RANGE}. Install a compatible "
+            "official Core wheel manually; no automatic replacement occurs."
         )
+    # Production path: enforce the same local metadata/dependency checks as
+    # pds launch. Explicit injected lookups remain for isolated service tests.
+    if version_lookup is metadata.version:
+        try:
+            core = inspect_local_compatibility().for_component("core")
+        except LocalInspectionError as error:
+            raise CoreWorkspaceQualificationError(
+                "Core installed-package metadata could not be inspected."
+            ) from error
+        if core is None or core.readiness is not Readiness.COMPATIBLE:
+            reasons = "missing_core_observation" if core is None else (
+                ", ".join(core.reason_codes)
+            )
+            raise CoreWorkspaceQualificationError(
+                f"Core is not locally compatible: {reasons}."
+            )
     return component
 
 
