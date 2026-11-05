@@ -12,13 +12,11 @@ from paper_data_suite.application_launching import (
     ApplicationLaunchExecutionError,
     ApplicationLaunchRefusedError,
     launch_application,
-    resolve_application_launchers,
 )
 from paper_data_suite.applications import (
     ApplicationInventory,
     ApplicationInventoryError,
     ApplicationLaunchStatus,
-    collect_application_inventory,
 )
 from paper_data_suite.classroom_setup_cli import run_classroom_setup
 from paper_data_suite.compatibility import (
@@ -32,6 +30,11 @@ from paper_data_suite.evergreen_catalog_preview import (
     CatalogPreviewError,
     inspect_offline_catalog_preview,
 )
+from paper_data_suite.evergreen_local_application_inventory import (
+    collect_local_launch_inventory,
+)
+from paper_data_suite.evergreen_local_compatibility import LocalInspectionError
+from paper_data_suite.evergreen_local_registry import APPROVED_COMPONENTS
 from paper_data_suite.evergreen_selected_witness_cli import (
     SelectedWitnessCliError,
     inspect_selected_witness_catalog_audit,
@@ -265,9 +268,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     modules = subparsers.add_parser(
         "modules",
-        help="list suite applications or preview signed offline release claims",
+        help="list installed approved applications or preview signed claims",
         description=(
-            "List suite-qualified teacher applications and their current launch "
+            "List approved PDS applications and current-environment launcher "
             "availability without importing or starting them. Optional catalog "
             "preview authenticates signed metadata but never enables launch."
         ),
@@ -336,10 +339,10 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--witness-config", type=Path)
     launch = subparsers.add_parser(
         "launch",
-        help="launch one suite-qualified application menu",
+        help="launch one locally compatible approved application menu",
         description=(
-            "Launch one suite-qualified application through its verified public "
-            "console boundary."
+            "Launch one locally compatible approved application through its "
+            "verified public console boundary."
         ),
     )
     launch.add_argument(
@@ -369,9 +372,12 @@ def render_application_inventory(inventory: ApplicationInventory) -> str:
                 f"  Purpose: {application.purpose}",
                 f"  Status: {_status_label(application.status)}",
                 f"  Component ID: {application.component_id}",
-                f"  Suite-qualified version: {application.qualified_version}",
+                f"  Historical manifest version: {application.qualified_version}",
                 "  Installed version: "
                 + (application.installed_version or "not installed"),
+                "  Provenance: unverified "
+                "(local metadata is not wheel authentication)",
+                "  Integration: exact integration qualification not asserted",
             )
         )
         if (
@@ -390,8 +396,9 @@ def render_application_inventory(inventory: ApplicationInventory) -> str:
 def _resolved_inventory(
     manifest: ReleaseCompatibilityManifest,
 ) -> ApplicationInventory:
-    inventory = collect_application_inventory(manifest)
-    return resolve_application_launchers(inventory)
+    # Historic exact manifest is retained, not used as the active version pin.
+    del manifest
+    return collect_local_launch_inventory()
 
 
 def _print_inventory_failure(error: Exception) -> None:
@@ -521,7 +528,12 @@ def _run_modules(
     try:
         manifest = load_release_compatibility_manifest()
         inventory = _resolved_inventory(manifest)
-    except (ApplicationInventoryError, CompatibilityManifestError, OSError) as error:
+    except (
+        ApplicationInventoryError,
+        CompatibilityManifestError,
+        LocalInspectionError,
+        OSError,
+    ) as error:
         _print_inventory_failure(error)
         return 1
 
@@ -602,16 +614,19 @@ def _run_launch(component_id: str) -> int:
         _print_inventory_failure(error)
         return 1
 
-    component = _manifest_component(manifest, component_id)
+    component = next(
+        (item for item in APPROVED_COMPONENTS if item.component_id == component_id),
+        None,
+    )
     if component is None:
         print(
             f"Unknown Paper Data Suite component ID: {component_id}.",
             file=sys.stderr,
         )
         return 2
-    if "launchable_application" not in component.capabilities:
+    if not component.launchable:
         print(
-            f"{component.display_name} is known to this suite release but is not a "
+            f"{component.display_name} is known to the approved registry but is not a "
             "suite-launchable application.",
             file=sys.stderr,
         )
@@ -619,7 +634,12 @@ def _run_launch(component_id: str) -> int:
 
     try:
         inventory = _resolved_inventory(manifest)
-    except (ApplicationInventoryError, CompatibilityManifestError, OSError) as error:
+    except (
+        ApplicationInventoryError,
+        CompatibilityManifestError,
+        LocalInspectionError,
+        OSError,
+    ) as error:
         _print_inventory_failure(error)
         return 1
 
@@ -643,6 +663,13 @@ def _run_launch(component_id: str) -> int:
             print(f"Remediation: {application.remediation}", file=sys.stderr)
         return 1
 
+    if "wheel provenance unverified" in application.reason:
+        print(
+            "Notice: local package checks passed, but official wheel "
+            "provenance is unverified. Install PDS wheels only from "
+            "official releases.",
+            file=sys.stderr,
+        )
     try:
         result = launch_application(application)
     except (ApplicationLaunchExecutionError, ApplicationLaunchRefusedError) as error:
