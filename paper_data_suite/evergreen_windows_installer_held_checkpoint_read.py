@@ -137,7 +137,12 @@ def _windows_api() -> object:
     """Load kernel32 lazily; no Windows API touched at Python import time."""
     if os.name != "nt":
         raise HeldCheckpointReadError("Windows is required")
-    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    # WinDLL exists only on Windows; use an explicit runtime lookup so
+    # platform-independent type checkers can validate this module on Linux.
+    loader = getattr(ctypes, "WinDLL", None)
+    if not callable(loader):
+        raise HeldCheckpointReadError("Win32 kernel32 loader unavailable")
+    api = loader("kernel32", use_last_error=True)
     api.CreateFileW.argtypes = [
         wintypes.LPCWSTR,
         wintypes.DWORD,
