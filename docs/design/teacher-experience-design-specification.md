@@ -1,6 +1,6 @@
 # Paper Data Suite Teacher Experience Design Specification
 
-**Status:** Draft v0.2 — eight design decisions accepted by project owner; not yet an adopted, release-qualified implementation contract  
+**Status:** Accepted draft v0.2 as Suite's implementation **target** under [Suite #51](https://github.com/Paper-Data-Suite/pds-paper-data-suite/issues/51); not a claim of released/qualified Core or producer APIs. See [Suite adoption and qualification](../integration/teacher-experience-adoption.md).
 **Specification version:** 0.2  
 **Date:** 2026-10-21  
 **Scope:** Paper Data Suite (Suite), PDS Core, ScoreForm, Quillan, Concord, Meridian, Vitrine, Portia, and future teacher-facing modules  
