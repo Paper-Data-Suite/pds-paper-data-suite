@@ -322,6 +322,7 @@ def smoke_test_workspace_restore_wheel(
         temp_root = Path(temporary)
         environment = temp_root / "venv"
         run_directory = temp_root / "run"
+        install_directory = temp_root / "installer-work"
         user_home = temp_root / "user"
         workspace = temp_root / "workspace"
         backup_parent = temp_root / "backups"
@@ -331,33 +332,38 @@ def smoke_test_workspace_restore_wheel(
         tampered_parent = temp_root / "tampered"
         incomplete_parent = temp_root / "incomplete"
         run_directory.mkdir()
+        install_directory.mkdir()
         user_home.mkdir()
 
         venv.EnvBuilder(with_pip=True).create(environment)
         python = _venv_python(environment)
         env = _isolated_command_env(os.environ, user_home=user_home)
 
+        # Packaging tools have their own scratch working directory. The
+        # application smoke directory starts empty and remains under strict
+        # no-artifact scrutiny for the entire workspace/backup/restore run.
         _install_runtime_dependencies(
             python,
             wheelhouse=temp_root / "third_party_wheelhouse",
-            cwd=run_directory,
+            cwd=install_directory,
             env=env,
         )
         _run(
             [str(python), "-m", "pip", "install", "--no-deps", str(core_wheel)],
-            cwd=run_directory,
+            cwd=install_directory,
             env=env,
         )
         _run(
             [str(python), "-m", "pip", "install", "--no-deps", str(suite_wheel)],
-            cwd=run_directory,
+            cwd=install_directory,
             env=env,
         )
         _run(
             [str(python), "-m", "pip", "check"],
-            cwd=run_directory,
+            cwd=install_directory,
             env=env,
         )
+        _assert_clean_directory(run_directory)
         _assert_installed_suite_location(
             python,
             environment=environment,
