@@ -185,7 +185,7 @@ def _core_public_contract_checks(
                 ),
                 component_id="core",
                 summary=(
-                    f"Core {purpose} public interface "
+                    f"Core {purpose} public contract "
                     + ("is available." if available else "is unavailable.")
                 ),
                 detail=f"Public callable: {module_name}.{name}.",

@@ -223,9 +223,14 @@ def _safe_wrapper(raw: bytes, target: str, *, windows: bool) -> None:
         raise StagedRuntimeError("generated console wrapper exceeds size limit")
     try:
         current = ast.parse(raw.decode("utf-8-sig"))
-        expected = [ast.parse(_expected_wrapper(target))]
-        if windows:
-            expected.append(ast.parse(_expected_windows_pip_wrapper(target)))
+        # Modern pip's distlib emits the short removesuffix wrapper on
+        # POSIX as well as Windows. Accept only these two exact AST forms;
+        # source-wheel ownership, launcher RECORD, and staged byte checks
+        # still apply independently.
+        expected = [
+            ast.parse(_expected_wrapper(target)),
+            ast.parse(_expected_windows_pip_wrapper(target)),
+        ]
     except (SyntaxError, UnicodeDecodeError, ValueError) as error:
         raise StagedRuntimeError("invalid generated console wrapper") from error
     observed_tree = ast.dump(current, include_attributes=False)
