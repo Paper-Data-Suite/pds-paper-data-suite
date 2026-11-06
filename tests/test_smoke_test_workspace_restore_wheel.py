@@ -135,3 +135,59 @@ def test_restore_help_assertion_requires_selection_and_destination_boundary() ->
         smoke_test_workspace_restore_wheel._assert_restore_help(
             "restore a backup"
         )
+
+
+def test_pip_scratch_artifact_is_outside_application_run_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pip scratch file must not become an application side effect."""
+    module = smoke_test_workspace_restore_wheel
+    suite = tmp_path / "suite.whl"
+    core = tmp_path / "core.whl"
+    suite.write_bytes(b"synthetic")
+    core.write_bytes(b"synthetic")
+
+    monkeypatch.setattr(module.venv.EnvBuilder, "create", lambda self, path: None)
+
+    def fake_dependencies(
+        python: Path, *, wheelhouse: Path, cwd: Path, env: object
+    ) -> None:
+        del python, wheelhouse, env
+        assert cwd.name == "installer-work"
+        (cwd / "pip").mkdir()
+
+    monkeypatch.setattr(module, "_install_runtime_dependencies", fake_dependencies)
+    pip_commands: list[str] = []
+
+    def fake_run(command: list[str], *, cwd: Path, env: object) -> object:
+        del env
+        assert cwd.name == "installer-work"
+        pip_commands.append(" ".join(command))
+        return None
+
+    monkeypatch.setattr(module, "_run", fake_run)
+
+    class RuntimeReached(Exception):
+        pass
+
+    def stop_at_runtime(*args: object, cwd: Path, **kwargs: object) -> None:
+        del args, kwargs
+        assert cwd.name == "run"
+        assert tuple(cwd.iterdir()) == ()
+        assert (cwd.parent / "installer-work" / "pip").is_dir()
+        raise RuntimeReached
+
+    monkeypatch.setattr(module, "_assert_installed_suite_location", stop_at_runtime)
+    with pytest.raises(RuntimeReached):
+        module.smoke_test_workspace_restore_wheel(suite, core)
+    assert len(pip_commands) == 3
+    assert all("-m pip" in command for command in pip_commands)
+
+
+def test_restore_clean_directory_still_rejects_pip_artifact(tmp_path: Path) -> None:
+    (tmp_path / "pip").mkdir()
+    with pytest.raises(
+        smoke_test_workspace_restore_wheel.WorkspaceRestoreSmokeTestError,
+        match="working-directory artifacts: pip",
+    ):
+        smoke_test_workspace_restore_wheel._assert_clean_directory(tmp_path)

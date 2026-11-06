@@ -12,13 +12,11 @@ from paper_data_suite.application_launching import (
     ApplicationLaunchExecutionError,
     ApplicationLaunchRefusedError,
     launch_application,
-    resolve_application_launchers,
 )
 from paper_data_suite.applications import (
     ApplicationInventory,
     ApplicationInventoryError,
     ApplicationLaunchStatus,
-    collect_application_inventory,
 )
 from paper_data_suite.classroom_setup_cli import run_classroom_setup
 from paper_data_suite.compatibility import (
@@ -27,7 +25,35 @@ from paper_data_suite.compatibility import (
     ReleaseCompatibilityManifest,
     load_release_compatibility_manifest,
 )
-from paper_data_suite.doctor import collect_doctor_diagnostics, render_doctor_report
+from paper_data_suite.doctor import render_doctor_report
+from paper_data_suite.evergreen_catalog_preview import (
+    CatalogPreviewError,
+    inspect_offline_catalog_preview,
+)
+from paper_data_suite.evergreen_local_application_inventory import (
+    collect_local_launch_inventory,
+)
+from paper_data_suite.evergreen_local_compatibility import LocalInspectionError
+from paper_data_suite.evergreen_local_doctor import (
+    collect_version_tolerant_doctor_diagnostics as collect_doctor_diagnostics,
+)
+from paper_data_suite.evergreen_local_registry import APPROVED_COMPONENTS
+from paper_data_suite.evergreen_selected_witness_cli import (
+    SelectedWitnessCliError,
+    inspect_selected_witness_catalog_audit,
+)
+from paper_data_suite.evergreen_signed_lab_cli import (
+    add_signed_lab_arguments,
+    dispatch_launch,
+)
+from paper_data_suite.evergreen_staged_catalog_cli import (
+    StagedCatalogCliError,
+    inspect_offline_staged_catalog_audit,
+)
+from paper_data_suite.evergreen_update_plan_cli import (
+    UpdateReviewCliError,
+    inspect_authenticated_update_review,
+)
 from paper_data_suite.settings import SuiteSettingsError, record_recent_component
 from paper_data_suite.settings_cli import (
     run_settings_clear_recent,
@@ -243,26 +269,90 @@ def build_parser() -> argparse.ArgumentParser:
             "APPLY authorizes Core writes."
         ),
     )
-    subparsers.add_parser(
+    modules = subparsers.add_parser(
         "modules",
-        help="list applications this suite release supports launching",
+        help="list installed approved applications or preview signed claims",
         description=(
-            "List suite-qualified teacher applications and their current launch "
-            "availability without importing or starting them."
+            "List approved PDS applications and current-environment launcher "
+            "availability without importing or starting them. Optional catalog "
+            "preview authenticates signed metadata but never enables launch."
         ),
     )
+    modules.add_argument(
+        "--catalog-cache",
+        type=Path,
+        help="offline signed metadata cache to preview (read-only)",
+    )
+    modules.add_argument(
+        "--trust-policy",
+        type=Path,
+        help="trusted public-key policy file for diagnostic verification",
+    )
+    modules.add_argument(
+        "--trust-sha256",
+        help="policy SHA-256 obtained from an independent trusted source",
+    )
+    modules.add_argument(
+        "--compare-local-metadata",
+        action="store_true",
+        help="correlate signed release versions with untrusted local package metadata",
+    )
+    modules.add_argument(
+        "--audit-staged-evidence",
+        type=Path,
+        help="read-only signed evidence directory for an isolated staged candidate",
+    )
+    modules.add_argument(
+        "--audit-stage-root",
+        type=Path,
+        help="isolated installed candidate environment to audit (not active)",
+    )
+    modules.add_argument(
+        "--audit-wheelhouse",
+        type=Path,
+        help="signed candidate wheelhouse to audit without installing anything",
+    )
+    modules.add_argument(
+        "--audit-witness-selected",
+        type=Path,
+        help="explicit online witnessed selected-stage diagnostic config (no launch)",
+    )
+    update = subparsers.add_parser(
+        "update",
+        help="review an authenticated per-module or composition update plan",
+        description=(
+            "Read-only update planning against a freshly witnessed selected "
+            "installation and independently pinned signed catalog. "
+            "No installation or activation is supported by this command."
+        ),
+    )
+    update.add_argument(
+        "--plan",
+        action="store_true",
+        help="explicitly request read-only planning; no software changes",
+    )
+    update.add_argument(
+        "--target",
+        action="append",
+        help="component=exact.version or component=REMOVE; may repeat",
+    )
+    update.add_argument("--catalog-cache", type=Path)
+    update.add_argument("--trust-policy", type=Path)
+    update.add_argument("--trust-sha256")
+    update.add_argument("--witness-config", type=Path)
     launch = subparsers.add_parser(
         "launch",
-        help="launch one suite-qualified application menu",
+        help="launch one locally compatible approved application menu",
         description=(
-            "Launch one suite-qualified application through its verified public "
-            "console boundary."
+            "Launch one locally compatible approved application through its "
+            "verified public console boundary."
         ),
     )
     launch.add_argument(
         "component_id",
         help="stable suite component ID, for example scoreform or quillan",
     )
+    add_signed_lab_arguments(launch)
     return parser
 
 
@@ -285,9 +375,12 @@ def render_application_inventory(inventory: ApplicationInventory) -> str:
                 f"  Purpose: {application.purpose}",
                 f"  Status: {_status_label(application.status)}",
                 f"  Component ID: {application.component_id}",
-                f"  Suite-qualified version: {application.qualified_version}",
+                f"  Historical manifest version: {application.qualified_version}",
                 "  Installed version: "
                 + (application.installed_version or "not installed"),
+                "  Provenance: unverified "
+                "(local metadata is not wheel authentication)",
+                "  Integration: exact integration qualification not asserted",
             )
         )
         if (
@@ -306,8 +399,9 @@ def render_application_inventory(inventory: ApplicationInventory) -> str:
 def _resolved_inventory(
     manifest: ReleaseCompatibilityManifest,
 ) -> ApplicationInventory:
-    inventory = collect_application_inventory(manifest)
-    return resolve_application_launchers(inventory)
+    # Historic exact manifest is retained, not used as the active version pin.
+    del manifest
+    return collect_local_launch_inventory()
 
 
 def _print_inventory_failure(error: Exception) -> None:
@@ -315,15 +409,190 @@ def _print_inventory_failure(error: Exception) -> None:
     print(f"Application inventory failed: {message}", file=sys.stderr)
 
 
-def _run_modules() -> int:
+def _run_modules(
+    *,
+    catalog_cache: Path | None = None,
+    trust_policy: Path | None = None,
+    trust_sha256: str | None = None,
+    compare_local_metadata: bool = False,
+    audit_staged_evidence: Path | None = None,
+    audit_stage_root: Path | None = None,
+    audit_wheelhouse: Path | None = None,
+    audit_witness_selected: Path | None = None,
+) -> int:
+    supplied = (catalog_cache, trust_policy, trust_sha256)
+    stage_options = (audit_staged_evidence, audit_stage_root, audit_wheelhouse)
+    if audit_witness_selected is not None:
+        if (
+            any(option is not None for option in stage_options)
+            or compare_local_metadata
+        ):
+            print(
+                "Witness-selected audit cannot be combined with staged or "
+                "local metadata modes.",
+                file=sys.stderr,
+            )
+            return 2
+        if not all(value is not None for value in supplied):
+            print(
+                "Witness-selected audit requires --catalog-cache, "
+                "--trust-policy, and --trust-sha256.",
+                file=sys.stderr,
+            )
+            return 2
+        assert catalog_cache is not None
+        assert trust_policy is not None
+        assert trust_sha256 is not None
+        from datetime import datetime, timezone
+
+        try:
+            report = inspect_selected_witness_catalog_audit(
+                catalog_cache=catalog_cache,
+                trust_policy=trust_policy,
+                pinned_policy_sha256=trust_sha256,
+                configuration=audit_witness_selected,
+                now=datetime.now(timezone.utc),
+            )
+        except SelectedWitnessCliError as error:
+            print(f"Witness-selected diagnostic refused: {error}", file=sys.stderr)
+            return 1
+        print(report, end="")
+        return 0
+    if any(item is not None for item in stage_options):
+        if not all(item is not None for item in (*stage_options, *supplied)):
+            print(
+                "Staged candidate audit requires all three --audit-* options "
+                "and --catalog-cache, --trust-policy, --trust-sha256.",
+                file=sys.stderr,
+            )
+            return 2
+        if compare_local_metadata:
+            print(
+                "Staged audit and --compare-local-metadata cannot be combined.",
+                file=sys.stderr,
+            )
+            return 2
+        assert catalog_cache is not None
+        assert trust_policy is not None
+        assert trust_sha256 is not None
+        assert audit_staged_evidence is not None
+        assert audit_stage_root is not None
+        assert audit_wheelhouse is not None
+        from datetime import datetime, timezone
+
+        try:
+            report = inspect_offline_staged_catalog_audit(
+                catalog_cache=catalog_cache,
+                trust_policy=trust_policy,
+                pinned_policy_sha256=trust_sha256,
+                evidence_directory=audit_staged_evidence,
+                stage_root=audit_stage_root,
+                wheelhouse=audit_wheelhouse,
+                now=datetime.now(timezone.utc),
+            )
+        except StagedCatalogCliError as error:
+            print(f"Staged candidate audit refused: {error}", file=sys.stderr)
+            return 1
+        print(report, end="")
+        return 0
+    if compare_local_metadata and not all(value is not None for value in supplied):
+        print(
+            "Local metadata correlation requires --catalog-cache, --trust-policy, "
+            "and --trust-sha256 together.",
+            file=sys.stderr,
+        )
+        return 2
+    if any(value is not None for value in supplied):
+        if not all(value is not None for value in supplied):
+            print(
+                "Catalog preview requires --catalog-cache, --trust-policy, "
+                "and --trust-sha256 together.",
+                file=sys.stderr,
+            )
+            return 2
+        assert catalog_cache is not None
+        assert trust_policy is not None
+        assert trust_sha256 is not None
+        from datetime import datetime, timezone
+
+        try:
+            preview = inspect_offline_catalog_preview(
+                catalog_cache=catalog_cache,
+                trust_policy=trust_policy,
+                pinned_policy_sha256=trust_sha256,
+                now=datetime.now(timezone.utc),
+                compare_local_metadata=compare_local_metadata,
+            )
+        except CatalogPreviewError as error:
+            print(f"Offline signed catalog preview refused: {error}", file=sys.stderr)
+            return 1
+        print(preview, end="")
+        return 0
     try:
         manifest = load_release_compatibility_manifest()
         inventory = _resolved_inventory(manifest)
-    except (ApplicationInventoryError, CompatibilityManifestError, OSError) as error:
+    except (
+        ApplicationInventoryError,
+        CompatibilityManifestError,
+        LocalInspectionError,
+        OSError,
+    ) as error:
         _print_inventory_failure(error)
         return 1
 
     print(render_application_inventory(inventory), end="")
+    return 0
+
+
+def _run_update(
+    *,
+    plan: bool = False,
+    target: tuple[str, ...] = (),
+    catalog_cache: Path | None = None,
+    trust_policy: Path | None = None,
+    trust_sha256: str | None = None,
+    witness_config: Path | None = None,
+) -> int:
+    """Explicitly read-only plan; absence of any required field is not a fallback."""
+    if (
+        not plan
+        or not target
+        or any(
+            value is None
+            for value in (catalog_cache, trust_policy, trust_sha256, witness_config)
+        )
+    ):
+        print(
+            "Update planning requires --plan, at least one --target, "
+            "--catalog-cache, --trust-policy, --trust-sha256 and --witness-config.",
+            file=sys.stderr,
+        )
+        return 2
+    assert catalog_cache is not None
+    assert trust_policy is not None
+    assert trust_sha256 is not None
+    assert witness_config is not None
+    import sysconfig
+    from datetime import datetime, timezone
+
+    try:
+        report = inspect_authenticated_update_review(
+            catalog_cache=catalog_cache,
+            trust_policy=trust_policy,
+            pinned_policy_sha256=trust_sha256,
+            witness_configuration=witness_config,
+            target_specs=target,
+            python_minor=f"{sys.version_info.major}.{sys.version_info.minor}",
+            platform_tag=sysconfig.get_platform()
+            .lower()
+            .replace("-", "_")
+            .replace(".", "_"),
+            now=datetime.now(timezone.utc),
+        )
+    except UpdateReviewCliError as error:
+        print(f"Authenticated update plan refused: {error}", file=sys.stderr)
+        return 1
+    print(report, end="")
     return 0
 
 
@@ -348,16 +617,19 @@ def _run_launch(component_id: str) -> int:
         _print_inventory_failure(error)
         return 1
 
-    component = _manifest_component(manifest, component_id)
+    component = next(
+        (item for item in APPROVED_COMPONENTS if item.component_id == component_id),
+        None,
+    )
     if component is None:
         print(
             f"Unknown Paper Data Suite component ID: {component_id}.",
             file=sys.stderr,
         )
         return 2
-    if "launchable_application" not in component.capabilities:
+    if not component.launchable:
         print(
-            f"{component.display_name} is known to this suite release but is not a "
+            f"{component.display_name} is known to the approved registry but is not a "
             "suite-launchable application.",
             file=sys.stderr,
         )
@@ -365,7 +637,12 @@ def _run_launch(component_id: str) -> int:
 
     try:
         inventory = _resolved_inventory(manifest)
-    except (ApplicationInventoryError, CompatibilityManifestError, OSError) as error:
+    except (
+        ApplicationInventoryError,
+        CompatibilityManifestError,
+        LocalInspectionError,
+        OSError,
+    ) as error:
         _print_inventory_failure(error)
         return 1
 
@@ -382,13 +659,21 @@ def _run_launch(component_id: str) -> int:
         or application.launcher_path is None
     ):
         print(
-            f"Cannot launch {application.display_name}: {application.reason}",
+            f"Cannot launch {application.display_name}: "
+            f"{_status_label(application.status)}; {application.reason}",
             file=sys.stderr,
         )
         if application.remediation is not None:
             print(f"Remediation: {application.remediation}", file=sys.stderr)
         return 1
 
+    if "wheel provenance unverified" in application.reason:
+        print(
+            "Notice: local package checks passed, but official wheel "
+            "provenance is unverified. Install PDS wheels only from "
+            "official releases.",
+            file=sys.stderr,
+        )
     try:
         result = launch_application(application)
     except (ApplicationLaunchExecutionError, ApplicationLaunchRefusedError) as error:
@@ -423,7 +708,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     arguments = parser.parse_args(argv)
     if arguments.command == "doctor":
-        report = collect_doctor_diagnostics(workspace=arguments.workspace)
+        try:
+            report = collect_doctor_diagnostics(workspace=arguments.workspace)
+        except (LocalInspectionError, OSError, ValueError) as error:
+            detail = str(error)[:300] or error.__class__.__name__
+            print(f"Doctor inspection failed: {detail}", file=sys.stderr)
+            return 1
         print(render_doctor_report(report), end="")
         return report.exit_code
     if arguments.command == "workspace":
@@ -477,8 +767,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command == "setup":
         return run_classroom_setup()
     if arguments.command == "modules":
-        return _run_modules()
+        return _run_modules(
+            catalog_cache=arguments.catalog_cache,
+            trust_policy=arguments.trust_policy,
+            trust_sha256=arguments.trust_sha256,
+            compare_local_metadata=arguments.compare_local_metadata,
+            audit_staged_evidence=arguments.audit_staged_evidence,
+            audit_stage_root=arguments.audit_stage_root,
+            audit_wheelhouse=arguments.audit_wheelhouse,
+            audit_witness_selected=arguments.audit_witness_selected,
+        )
+    if arguments.command == "update":
+        return _run_update(
+            plan=arguments.plan,
+            target=tuple(arguments.target or ()),
+            catalog_cache=arguments.catalog_cache,
+            trust_policy=arguments.trust_policy,
+            trust_sha256=arguments.trust_sha256,
+            witness_config=arguments.witness_config,
+        )
     if arguments.command == "launch":
-        return _run_launch(arguments.component_id)
+        return dispatch_launch(arguments, historical_launch=_run_launch)
     parser.print_help()
     return 0

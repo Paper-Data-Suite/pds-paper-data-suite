@@ -58,17 +58,14 @@ def test_main_returns_failure_when_smoke_test_fails(
     assert "synthetic failure" in capsys.readouterr().err
 
 
-def test_doctor_output_assertion_requires_core_v062_provider_sections() -> None:
+def test_doctor_output_assertion_accepts_version_tolerant_sections() -> None:
     output = "\n".join(
         (
             "Paper Data Suite doctor",
             "Runtime",
-            "Release tooling",
-            "pip 26.2.1",
             "Suite",
             "Packages",
             "Dependencies",
-            "Entry points",
             "Core",
             "Workspace",
             "Core registry",
@@ -82,6 +79,7 @@ def test_doctor_output_assertion_requires_core_v062_provider_sections() -> None:
         )
     )
 
+    assert "Entry points" not in output
     smoke_test_wheel._assert_doctor_output(output)
 
 

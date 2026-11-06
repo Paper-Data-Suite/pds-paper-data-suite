@@ -1,0 +1,23 @@
+# Issue #49 — Slice 85: protected capsule-clearance preflight (no deletion)
+
+## Decision and strict scope
+
+Slice 84 appended an immutable `LOCAL_RECEIPT_CONVERGENCE_RECORDED_CAPSULE_RETAINED` service record, but did **not** grant capsule deletion or launch. Slice 85 adds a separate, strictly non-destructive, one-shot **capsule-clearance preflight** to the exact same protected SQLite connection as Slices 78–84. The status `CAPSULE_CLEARANCE_PREFLIGHT_RECORDED_NO_DELETE_DISPATCH` is diagnostic evidence, **not** a deletion authorization. No filesystem mutation, cleanup callback, restart, slot switch, rollback, new witness CAS, launcher selection, or classroom-side writer is exposed.
+
+## Physical bytes and independently protected identities
+
+The service must supply a **protected capsule target identity**, separately configured and pinned, plus an `IndependentCapsuleReader` that samples the **actual bytes** of the existing pending capsule under the service's OS-controlled locks. The samples are bounded to 80 KiB and must hash to the recovery-capsule SHA-256 in the original protected reservation. A merely matching caller-supplied hash string is **not** sufficient. The reader must certify a protected regular file, protected parent directory, exclusive capsule fence and prevention of concurrent capsule writers; boolean fields by themselves cannot establish these facts. This explicitly strengthens the previous signed logical hash agreement with a physical byte comparison. The synthetic test fixture makes its capsule's actual bytes match the initially reserved hash; no fixture-written `True` flag constitutes a real operational attestation.
+
+## One-shot transaction and refusal ordering
+
+1. Reparse the exact original canonical witness request using the existing Slice 84 basis chain: Slice 78 reservation, Slice 79 preclaim, Slice 80 protected service receipt, Slice 81 deployment intent, Slice 82 prewrite uncertainty marker, and Slice 83 one-shot dispatch claim. Reject a forged or noncanonical supplied Slice 84 convergence record, including all identity, SHA-256, revision, generation and nonauthorizing status/authority fields.
+2. Authenticate distinct service operations `prepare_capsule_clearance_once`, `observe_capsule_clearance_preflight`, and each earlier protected-record read. The separate service custody of database, signing key, actor and target is essential; callers cannot make these independent merely by constructing Python dataclasses.
+3. Within SQLite `BEGIN IMMEDIATE`, independently read the **real persisted** Slice 78–84 records and reject any mismatch or prior Slice 85 record. No automatic retry is safe if the transaction's completion is uncertain.
+4. Independently sample the capsule's raw bytes and protected identity. Confirm fresh physical installed composition, exclusive writer shutdown/no in-flight operations, exactly present successor active receipt, and retained recovery state. Use a fresh independently pinned, challenge-bound signed successor witness readback. Sample the capsule and physical/fence state a **second time**. Require both capsule samples to be identical, both fenced physical samples to match, and the new fence/termination digest to equal the convergence record's independently recorded digest.
+5. Append **one** protected service row binding the canonical witness request, successor, full Slice 84 convergence record hash, exact pinned capsule identity, capsule byte digest, target identity and fence digest. Commit once. Return only nonauthorizing diagnostic metadata; no raw capsule bytes are persisted in the row.
+
+A changed or absent capsule, unexpected active receipt, changed signed witness, missing convergence, lost exclusive fence, writer still in flight, revoked consent or actor, unknown target identity, tampered state, database error, or uncertain commit **blocks** this preflight. The stored row is not a lease or bearer capability and is never reset, updated or deleted by this API.
+
+## Production boundary and follow-on
+
+This library cannot guarantee independent Windows service account/ACL separation, protected target resolution, device/volume identity, reparse-point resistance, exclusive process and filesystem locks, correct fsync/rename/directory durability, permanent writer shutdown, consent freshness, or complete crash recovery. These require separately deployed and fault-injected production facilities. A successful preflight **still retains the capsule**. Any future deletion needs independent authorization, a durable pre-delete uncertainty barrier, explicit OS-qualified safe deletion and post-delete verification; a future launch-readiness grant is an even later boundary. The preflight must never be interpreted as permission to delete or launch.

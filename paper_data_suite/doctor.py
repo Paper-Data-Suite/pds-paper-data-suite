@@ -1567,6 +1567,7 @@ def collect_workspace_registry_diagnostics(
     version_lookup: DistributionVersionLookup = metadata.version,
     module_importer: ModuleImporter = import_module,
     services: _CoreWorkspaceServices | None = None,
+    allow_compatible_core: bool = False,
 ) -> DoctorReport:
     """Collect read-only Core workspace, school-year, and registry diagnostics.
 
@@ -1602,7 +1603,9 @@ def collect_workspace_registry_diagnostics(
                 ),
             )
         )
-    if not _qualified_component(core, version_lookup=version_lookup):
+    if not allow_compatible_core and not _qualified_component(
+        core, version_lookup=version_lookup
+    ):
         return DoctorReport(
             (
                 _dependent_workspace_skip(
@@ -1953,6 +1956,7 @@ def collect_core_provider_diagnostics(
     version_lookup: DistributionVersionLookup = metadata.version,
     module_importer: ModuleImporter = import_module,
     services: _CoreProviderServices | None = None,
+    allow_compatible_core: bool = False,
 ) -> DoctorReport:
     """Use Core v0.6.3 failure-isolated provider diagnostics without owning them."""
     active_manifest = manifest or load_release_compatibility_manifest()
@@ -1978,7 +1982,9 @@ def collect_core_provider_diagnostics(
             )
         )
 
-    if not _qualified_component(core, version_lookup=version_lookup):
+    if not allow_compatible_core and not _qualified_component(
+        core, version_lookup=version_lookup
+    ):
         return DoctorReport(
             (
                 DiagnosticCheck(

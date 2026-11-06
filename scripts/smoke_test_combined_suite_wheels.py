@@ -671,7 +671,7 @@ def _assert_module_inventory(
             application.display_name,
             "Status: available",
             f"Component ID: {application.component_id}",
-            f"Suite-qualified version: {application.version}",
+            f"Historical manifest version: {application.version}",
             f"Installed version: {application.version}",
             f"Launch: pds launch {application.component_id}",
         )
@@ -685,13 +685,33 @@ def _assert_module_inventory(
         raise CombinedSuiteSmokeError(
             "Combined inventory contains an unexpected application status."
         )
-    forbidden = ("PDS Core\n", "Meridian\n", "Portia\n", ".cli:main")
+    # Newer approved apps may appear in the inventory even when absent
+    # from the historical combined-wheel composition. They must not launch.
+    forbidden = ("PDS Core\n", ".cli:main")
     leaked = tuple(fragment for fragment in forbidden if fragment in output)
     if leaked:
         raise CombinedSuiteSmokeError(
             "Combined inventory exposed an invalid row or private target: "
             + ", ".join(leaked)
         )
+    for display_name, component_id in (
+        ("Meridian", "meridian"),
+        ("Portia", "portia"),
+    ):
+        heading = f"\n{display_name}\n"
+        if output.count(heading) != 1:
+            raise CombinedSuiteSmokeError(
+                f"Optional {component_id} row missing or duplicated."
+            )
+        section = output.split(heading, 1)[1].split("\n\n", 1)[0]
+        if (
+            f"  Component ID: {component_id}" not in section
+            or "  Status: not installed" not in section
+            or f"  Launch: pds launch {component_id}" in section
+        ):
+            raise CombinedSuiteSmokeError(
+                f"Optional {component_id} must remain not installed."
+            )
 
 
 def _assert_configured_doctor(output: str) -> None:

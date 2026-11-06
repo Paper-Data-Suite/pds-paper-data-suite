@@ -13,6 +13,7 @@ from paper_data_suite.workspace_setup import (
     CoreWorkspaceServiceError,
     CoreWorkspaceServices,
     WorkspaceEnvironmentOverrideError,
+    WorkspaceInspector,
     WorkspaceMutationError,
     WorkspacePartialSuccessError,
     WorkspacePresentationState,
@@ -163,9 +164,9 @@ def test_load_services_refuses_wrong_core_before_import() -> None:
         imported = True
         return SimpleNamespace()
 
-    with pytest.raises(CoreWorkspaceQualificationError, match="qualifies exactly"):
+    with pytest.raises(CoreWorkspaceQualificationError, match="runtime range"):
         load_core_workspace_services(
-            version_lookup=lambda _distribution: "0.6.99",
+            version_lookup=lambda _distribution: "0.7.0",
             module_importer=importer,
         )
 
@@ -280,7 +281,7 @@ def test_observe_rejects_malformed_status(tmp_path: Path) -> None:
     )
     broken = CoreWorkspaceServices(
         inspect_workspace_root=cast(
-            object,
+            WorkspaceInspector,
             lambda explicit_root=None: malformed,
         ),
         ensure_workspace_root=services.ensure_workspace_root,

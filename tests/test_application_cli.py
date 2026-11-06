@@ -168,7 +168,10 @@ def test_launch_refuses_not_installed_application(
 
     assert main(("launch", "quillan")) == 1
     captured = capsys.readouterr()
-    assert "Cannot launch Quillan: quillan status reason." in captured.err
+    assert (
+        "Cannot launch Quillan: not installed; quillan status reason."
+        in captured.err
+    )
     assert "Remediation: Use the verified bootstrap workflow." in captured.err
 
 

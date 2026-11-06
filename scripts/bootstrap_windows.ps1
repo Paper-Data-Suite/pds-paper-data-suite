@@ -617,11 +617,12 @@ try {
             }
 
             if ($SuitePlan.action -eq 'install_missing') {
+                # Retain the authenticated Suite wheel and exact PDS constraints;
+                # resolve its declared third-party runtime dependencies as wheels.
                 Invoke-Required "Install exact authenticated suite" $TargetPython @(
                     '-m', 'pip', 'install',
                     '--disable-pip-version-check',
-                    '--no-deps',
-                    '--no-index',
+                    '--only-binary=:all:',
                     '--constraint', $ConstraintsPath,
                     $ResolvedSuiteWheel
                 )

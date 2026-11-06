@@ -1,0 +1,34 @@
+name: Suite 49 disposable standard-user ACL negative acceptance
+
+on:
+  push:
+    branches:
+      - 49-evergreen-launch-and-supported-composition-upgrades
+    paths:
+      - native/windows/bootstrap/sandbox_ordinary_user_probe.ps1
+      - native/windows/bootstrap/qualify_sandbox_ordinary_user_ci.ps1
+      - .github/workflows/issue49-sandbox-ordinary-user-denial.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-second-account:
+    name: Ephemeral Windows standard-user ACL denial
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Require positive-control access and real standard-user write denials
+        shell: pwsh
+        run: |
+          ./native/windows/bootstrap/qualify_sandbox_ordinary_user_ci.ps1
+      - name: Verify source tree unchanged
+        shell: pwsh
+        run: |
+          git diff --check
+          $status = @(git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) {
+            throw 'Disposable ordinary-user test modified the source tree.'
+          }

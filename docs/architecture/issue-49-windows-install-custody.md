@@ -1,0 +1,9 @@
+# Issue #49 — Slice 104: Read-only Windows install custody assessment
+
+The signed Quillan 0.10.6 lab now validates wheel, installed code, transitive dependencies, publisher signatures, and a separate root-signed native Python/console executable inventory. **None of those can provide an independently protected installed head or safe mutable deployment.**
+
+This slice introduces a Windows-specific observation, not another signing ceremony. From the genuine OS Program Files root through the requested existing path, it obtains each NTFS owner and DACL through Windows `Get-Acl` with SecurityIdentifier conversion. Refuse if a path is missing, is a reparse point, is outside Program Files, has a non SYSTEM/Administrators/TrustedInstaller owner, or grants potentially mutating rights to any untrusted SID (including inherited ACEs). Deny ACEs do not cancel unsafe allows in this deliberately conservative policy. Ordinary read-only access is permitted. No DACLs or directories are changed.
+
+The audit **does not** prove full Windows effective access permissions, file-content integrity, signed publisher provenance, exclusive service control, protected SQLite/witness custody, safe process dispatch against time-of-check/time-of-use races, or production authorization. Passing is only one independently observable prerequisite. The teacher's Downloads virtual environment is intentionally excluded.
+
+Production design must subsequently provision an administrator/service-owned installation under a protected OS location, a physically separate protected installation head and writer, trust-policy pin custody, native executable and dependency wheel evidence, a formal activation and recovery path, and an independently authoritative launch broker. Administrator users retain full administrative control in the Windows security model. Do not mark production-ready based on this slice.
