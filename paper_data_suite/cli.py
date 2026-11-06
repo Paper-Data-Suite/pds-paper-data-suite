@@ -659,7 +659,8 @@ def _run_launch(component_id: str) -> int:
         or application.launcher_path is None
     ):
         print(
-            f"Cannot launch {application.display_name}: {application.reason}",
+            f"Cannot launch {application.display_name}: "
+            f"{_status_label(application.status)}; {application.reason}",
             file=sys.stderr,
         )
         if application.remediation is not None:
