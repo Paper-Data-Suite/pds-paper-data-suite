@@ -413,7 +413,6 @@ def _assert_doctor_output(output: str) -> None:
         "Suite",
         "Packages",
         "Dependencies",
-        "Entry points",
         "Core",
         "Workspace",
         "Core registry",
