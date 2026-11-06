@@ -482,6 +482,42 @@ raise SystemExit(main(("doctor",)))
     )
 
 
+def _install_runtime_dependencies(
+    python: Path,
+    *,
+    wheelhouse: Path,
+    cwd: Path,
+    env: Mapping[str, str],
+) -> None:
+    """Fetch the two Suite runtime dependencies, then install them offline.
+
+    Exact PDS wheels and release tooling are installed separately with no index.
+    The wheelhouse contains only third-party dependencies and their requirements.
+    """
+    requirements = ("packaging>=24,<27", "cryptography>=45,<47")
+    wheelhouse.mkdir()
+    download_env = dict(env)
+    download_env.pop("PIP_NO_INDEX", None)
+    _run(
+        [
+            str(python), "-m", "pip", "download",
+            "--only-binary=:all:", "--dest", str(wheelhouse),
+            *requirements,
+        ],
+        cwd=cwd,
+        env=download_env,
+    )
+    _run(
+        [
+            str(python), "-m", "pip", "install",
+            "--no-index", "--only-binary=:all:",
+            "--find-links", str(wheelhouse), *requirements,
+        ],
+        cwd=cwd,
+        env=env,
+    )
+
+
 def smoke_test(
     suite_wheel: Path,
     core_wheel: Path,
@@ -527,6 +563,12 @@ def smoke_test(
                 "--force-reinstall",
                 str(release_tool_wheel),
             ],
+            cwd=run_directory,
+            env=command_env,
+        )
+        _install_runtime_dependencies(
+            python,
+            wheelhouse=temp_root / "third_party_wheelhouse",
             cwd=run_directory,
             env=command_env,
         )

@@ -266,6 +266,42 @@ if present:
     _run([str(python), "-c", code], cwd=cwd, env=env)
 
 
+def _install_runtime_dependencies(
+    python: Path,
+    *,
+    wheelhouse: Path,
+    cwd: Path,
+    env: Mapping[str, str],
+) -> None:
+    """Fetch the two Suite runtime dependencies, then install them offline.
+
+    Exact PDS wheels and release tooling are installed separately with no index.
+    The wheelhouse contains only third-party dependencies and their requirements.
+    """
+    requirements = ("packaging>=24,<27", "cryptography>=45,<47")
+    wheelhouse.mkdir()
+    download_env = dict(env)
+    download_env.pop("PIP_NO_INDEX", None)
+    _run(
+        [
+            str(python), "-m", "pip", "download",
+            "--only-binary=:all:", "--dest", str(wheelhouse),
+            *requirements,
+        ],
+        cwd=cwd,
+        env=download_env,
+    )
+    _run(
+        [
+            str(python), "-m", "pip", "install",
+            "--no-index", "--only-binary=:all:",
+            "--find-links", str(wheelhouse), *requirements,
+        ],
+        cwd=cwd,
+        env=env,
+    )
+
+
 def smoke_test_workspace_restore_wheel(
     suite_wheel: Path,
     core_wheel: Path,
@@ -301,6 +337,12 @@ def smoke_test_workspace_restore_wheel(
         python = _venv_python(environment)
         env = _isolated_command_env(os.environ, user_home=user_home)
 
+        _install_runtime_dependencies(
+            python,
+            wheelhouse=temp_root / "third_party_wheelhouse",
+            cwd=run_directory,
+            env=env,
+        )
         _run(
             [str(python), "-m", "pip", "install", "--no-deps", str(core_wheel)],
             cwd=run_directory,
