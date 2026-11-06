@@ -18,7 +18,7 @@ def test_assets_are_bounded_and_existing_gate_is_preserved() -> None:
     for item in (CPP, CMAKE, GATE, HELPER, DOC):
         assert item.is_file()
         assert 100 < item.stat().st_size < 28000
-    assert GATE.stat().st_size < 16_000
+    assert len(GATE.read_bytes().replace(b"\r\n", b"\n")) < 16_000
     assert (
         GATE.read_text(encoding="utf-8")
         .rstrip()

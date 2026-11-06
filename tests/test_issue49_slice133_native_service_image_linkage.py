@@ -20,7 +20,7 @@ def test_exact_assets_and_prior_win_gate_preserved() -> None:
     for item in (NATIVE, HEADER, UNIT, CMAKE, HELPER, MAIN, DOC):
         assert item.is_file()
         assert 100 < item.stat().st_size < 30_000
-    assert MAIN.stat().st_size < 16_000
+    assert len(MAIN.read_bytes().replace(b"\r\n", b"\n")) < 16_000
     assert (
         MAIN.read_text(encoding="utf-8")
         .rstrip()

@@ -18,7 +18,7 @@ def test_exact_assets_and_old_gate_limits() -> None:
     for item in (CPP, CMAKE, HELPER, GATE, DOC):
         assert item.is_file()
         assert 100 < item.stat().st_size < 28000
-    assert GATE.stat().st_size < 16_000
+    assert len(GATE.read_bytes().replace(b"\r\n", b"\n")) < 16_000
 
 
 def test_fixed_service_and_current_process_token_only() -> None:

@@ -671,7 +671,7 @@ def _assert_module_inventory(
             application.display_name,
             "Status: available",
             f"Component ID: {application.component_id}",
-            f"Suite-qualified version: {application.version}",
+            f"Historical manifest version: {application.version}",
             f"Installed version: {application.version}",
             f"Launch: pds launch {application.component_id}",
         )

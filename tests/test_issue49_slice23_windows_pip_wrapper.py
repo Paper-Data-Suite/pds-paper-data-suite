@@ -51,10 +51,31 @@ def test_modified_windows_pip_wrapper_is_rejected(tmp_path: Path, changed: str) 
         _inspect(scene)
 
 
-def test_windows_template_not_allowed_on_posix(tmp_path: Path) -> None:
+def test_modern_pip_template_is_also_valid_on_posix(tmp_path: Path) -> None:
+    # Modern pip emits the same removesuffix script body on both platforms.
     scene = _scene(tmp_path, layout="posix")
     (scene[0] / "bin/demo").write_text(
         "#!/private/python\n" + MODERN_WINDOWS_WRAPPER, encoding="utf-8"
+    )
+    result = _inspect(scene)
+    assert len(result.console_launchers) == 1
+    assert result.console_launchers[0].target == "demo_app.cli:main"
+    assert result.native_executables_authenticated is False
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        MODERN_WINDOWS_WRAPPER.replace("demo_app.cli", "wrong.cli"),
+        MODERN_WINDOWS_WRAPPER + "print('unapproved code')\n",
+    ],
+)
+def test_modified_posix_pip_template_is_refused(
+    tmp_path: Path, changed: str
+) -> None:
+    scene = _scene(tmp_path, layout="posix")
+    (scene[0] / "bin/demo").write_text(
+        "#!/private/python\n" + changed, encoding="utf-8"
     )
     with pytest.raises(StagedRuntimeError, match="console wrapper"):
         _inspect(scene)

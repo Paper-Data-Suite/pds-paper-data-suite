@@ -18,7 +18,7 @@ def test_source_assets_present_and_old_gate_unchanged() -> None:
     for item in (CPP, CMAKE, HELPER, GATE, DOC):
         assert item.is_file()
         assert 100 < item.stat().st_size < 30000
-    assert GATE.stat().st_size < 16000
+    assert len(GATE.read_bytes().replace(b"\r\n", b"\n")) < 16000
     assert (
         GATE.read_text(encoding="utf-8")
         .rstrip()

@@ -17,7 +17,7 @@ def test_exact_scope_and_main_gate_compatibility() -> None:
     for item in (CPP, HELPER, MAIN, DOC):
         assert item.is_file()
         assert 100 < item.stat().st_size < 30000
-    assert MAIN.stat().st_size < 16000
+    assert len(MAIN.read_bytes().replace(b"\r\n", b"\n")) < 16000
     assert (
         MAIN.read_text(encoding="utf-8")
         .rstrip()

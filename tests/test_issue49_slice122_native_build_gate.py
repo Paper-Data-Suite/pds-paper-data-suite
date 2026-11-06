@@ -18,7 +18,7 @@ def _script() -> str:
 
 def test_required_assets_exist_and_are_bounded() -> None:
     assert all(item.is_file() for item in (SCRIPT, WORKFLOW, DOC))
-    assert 1_000 < SCRIPT.stat().st_size < 16_000
+    assert 1_000 < len(SCRIPT.read_bytes().replace(b"\r\n", b"\n")) < 16_000
     assert WORKFLOW.stat().st_size < 6_000
 
 
