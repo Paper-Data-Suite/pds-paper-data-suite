@@ -32,3 +32,47 @@ An installed-wheel acceptance record must identify exact artifact origin, versio
 - **Suite #20–#23:** qualify actual attention and any inert `ModuleOwnerActionRef` handoff separately. Personal Notes/Tasks are not canonical module attention.
 
 Do not reintroduce the deferred #49 signed-catalog publisher/installer machinery for ordinary manual-wheel provider discovery.
+
+## Slice 3 — Exact-release wheel evidence and synthetic Core invocation vectors
+
+**Implementation evidence only until the commands below run on real wheel assets.** The new [`scripts/issue16_official_wheel_acceptance.py`](../../scripts/issue16_official_wheel_acceptance.py) pins seven exact GitHub release wheel filenames, distribution identities, versions and **GitHub release asset SHA-256 digests observed on 2026-11-06**: Core v0.6.6 and the six public producer releases in the table above. This is a dated, reproducible acceptance set, **not** a new Suite dependency minimum, immutable provenance certificate, independent publisher signature, or authorization to install packages in a teacher environment.
+
+The default mode reads **only local wheel ZIP bytes** and their `METADATA` / `entry_points.txt` in memory. It hashes the complete bytes before metadata inspection and checks each producer's exact Core operations v1 entry-point name and target. It never imports a wheel or calls a provider. Its bounded states are `not_supplied`, `digest_mismatch`, `invalid_archive`, `invalid_metadata`, `entry_point_missing`, `entry_point_mismatch`, and `verified_metadata`. **`verified_metadata` proves neither profile validity nor operational readiness/attention**; a discrepancy is evidence of an actual release/source gap to investigate, not a reason to patch Suite's approved identities without review.
+
+After Slice 3 lands, the teacher/developer may run (PowerShell, in the Suite checkout):
+
+```powershell
+$python = ".\.venv\Scripts\python.exe"
+$wheelhouse = Join-Path $HOME "Downloads\pds16_official_wheels"
+
+# Optional explicit download: only the seven GitHub release assets pinned by SHA-256.
+& $python scripts\issue16_official_wheel_acceptance.py `
+    --wheelhouse $wheelhouse --fetch-official --require-complete
+
+# Read-only repeat with no network, install, provider imports or callbacks.
+& $python scripts\issue16_official_wheel_acceptance.py `
+    --wheelhouse $wheelhouse --require-complete
+
+# Separately authorized execution: installs ONLY to a disposable offline venv,
+# then calls Core's zero-argument module-operations profile diagnosis. This
+# executes installed Python package code; it is not an OS sandbox.
+& $python scripts\issue16_official_wheel_acceptance.py `
+    --wheelhouse $wheelhouse --profile-smoke
+```
+
+The last command performs no readiness/attention evaluation and **does not install or downgrade the active `.venv`**. Its isolated venv uses offline `pip --no-index --no-deps`; missing non-PDS dependency wheels may cause `profile_import_or_diagnosis_failed`. This outcome is **not qualified**, not a false provider absence, and must be recorded separately. Before the end-of-ticket acceptance, record actual output for each of the six wheels, Python/OS, hashes and Core version in a PR review note. The script suppresses subprocess diagnostics/private paths; more detailed troubleshooting belongs to separately approved testing, never a real student workspace. Downloads are opt-in, and no supplied wheel is overwritten on a digest mismatch. Network/download errors and isolated environment failures are honest blockers for that gate, **not** blockers for already-qualified metadata-only Suite home discovery.
+
+`tests/test_issue16_official_wheel_acceptance.py` exercises exact metadata/digest refusal using synthetic, test-only ZIP fixtures; its successes **do not** assert the official wheels were downloaded. `tests/test_issue16_core_invocation_vectors.py` invokes *installed Core's public v1 functions against entirely synthetic callbacks* and distinguishes evaluated ready/false, evaluated empty attention, unavailable, capability absent, provider exception, invalid report, wrong-class context and foreign-owner inert action reference. Neither fixture test invokes real producer readiness/attention, edits student data or creates workspaces.
+
+### Evidence / handoff gates
+
+| Gate | Scope | State before developer runs the opt-in commands |
+| --- | --- | --- |
+| D0 | Core operations v1 and Suite owner boundaries | Documented in #16 and Core public contracts |
+| D1 | Six producer source declarations; Slice 1 metadata-only and Slice 2 explicit profile-diagnosis projection | Source implemented; targeted local regression log required |
+| D2a | Exact seven official GitHub release wheel hashes and static metadata | **PENDING real wheelhouse run**; expected digests recorded, not independently verified bytes in this change |
+| D2b | Exact installed, disposable environment; six profile factory diagnosis results | **PENDING opt-in profile smoke**; report blocked outcomes, do not fabricate passes |
+| D3 | Actual module-owned readiness/attention with qualified scope; user-facing action routing | **DEFERRED** to Suite #20–#23 and producer-owned adoption |
+| D4 | Mixed-application teacher home/workflow and physical paper journeys | **DEFERRED** to Suite #52 and #27/#28 |
+
+**Slice 3 completion gate:** updated docs, exact-wheel evidence tool, focused failure/ownership tests, static typing and CI. A failed optional real-wheel run must remain a visible release-qualification exception/producer follow-up, not trigger uncontrolled infrastructure changes in #16. Keep the Suite home metadata-only and never interpret a personal Task as producer attention.
