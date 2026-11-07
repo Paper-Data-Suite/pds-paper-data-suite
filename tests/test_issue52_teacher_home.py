@@ -1,4 +1,4 @@
-"""Suite #52 Slice 1: interactive entry, truthful menu, and guarded actions."""
+"""Suite #52: home entry, guarded launch/return and truthful availability."""
 
 from __future__ import annotations
 
@@ -322,3 +322,116 @@ def test_colon_notes_is_not_intercepted_without_a_handler() -> None:
     assert code == 0
     assert "Choose a listed number" in text
     assert "Notes & Tasks — not yet available" in text
+
+
+@pytest.mark.parametrize(
+    ("status", "launcher_present", "expected_reason"),
+    [
+        (ApplicationLaunchStatus.NOT_INSTALLED, False, "not installed"),
+        (ApplicationLaunchStatus.INCOMPATIBLE, False, "did not qualify"),
+        (ApplicationLaunchStatus.UNAVAILABLE, False, "launcher is unavailable"),
+        (ApplicationLaunchStatus.AVAILABLE, False, "no approved launcher"),
+    ],
+)
+def test_unavailable_application_gives_bounded_reason_and_remediation(
+    status: ApplicationLaunchStatus,
+    launcher_present: bool,
+    expected_reason: str,
+) -> None:
+    bad_metadata = "C:/private/teacher-records/\x1b[31m"
+    broken = replace(
+        _observation("scoreform", available=True),
+        status=status,
+        launcher_path=Path("/synthetic/scoreform") if launcher_present else None,
+        reason=bad_metadata,
+        remediation=bad_metadata,
+    )
+    launched: list[str] = []
+    code, text = _run(
+        "1\nq\n",
+        inventory=lambda: ApplicationInventory((broken,)),
+        launcher=lambda cid: launched.append(cid) or 0,
+    )
+    assert code == 0
+    assert not launched
+    assert expected_reason in text
+    assert "Reason:" in text
+    assert "Next step:" in text
+    assert "pds modules" in text
+    assert bad_metadata not in text
+    assert "\x1b" not in text
+
+
+def test_action_time_eligibility_is_refreshed_after_child_returns() -> None:
+    inventories = iter(
+        (
+            _inventory(),
+            ApplicationInventory((_observation("scoreform", available=False),)),
+            _inventory(),
+        )
+    )
+    launched: list[str] = []
+    code, text = _run(
+        "1\n1\nq\n",
+        inventory=lambda: next(inventories),
+        launcher=lambda cid: launched.append(cid) or 0,
+    )
+    assert code == 0
+    assert launched == ["scoreform"]
+    assert "Returned from ScoreForm" in text
+    assert "ScoreForm cannot be launched (not installed)" in text
+
+
+def test_bounded_launcher_failure_does_not_end_home_or_leak_path() -> None:
+    attempts: list[str] = []
+
+    def launcher(component_id: str) -> int:
+        attempts.append(component_id)
+        if component_id == "scoreform":
+            raise OSError("C:/private/teacher-records")
+        return 0
+
+    code, text = _run("1\n3\nq\n", launcher=launcher)
+    assert code == 0
+    assert attempts == ["scoreform", "concord"]
+    assert "launch was refused or could not start" in text
+    assert "Returned from Concord" in text
+    assert "C:/private/teacher-records" not in text
+
+
+def test_keyboard_interrupt_during_foreground_launch_recovers() -> None:
+    attempts: list[str] = []
+
+    def launcher(component_id: str) -> int:
+        attempts.append(component_id)
+        if component_id == "scoreform":
+            raise KeyboardInterrupt
+        return 0
+
+    code, text = _run("1\n3\nq\n", launcher=launcher)
+    assert code == 0
+    assert attempts == ["scoreform", "concord"]
+    assert "Application launch interrupted" in text
+    assert "Returned from Concord" in text
+
+
+def test_unusable_terminal_input_exits_without_retry_loop() -> None:
+    class ReadErrorTerminal(FakeTerminal):
+        def readline(self, *args: object, **kwargs: object) -> str:
+            raise OSError("terminal disconnected")
+
+    output = FakeTerminal()
+    code = run_teacher_home(
+        input_stream=ReadErrorTerminal(),
+        output=output,
+        collect_inventory=_inventory,
+        launch=lambda _cid: 0,
+        doctor=lambda: 0,
+        show_help=lambda: None,
+        recent=lambda: (),
+        observe_contract=_precontract,
+        core_importer=lambda _name: None,
+    )
+    assert code == 0
+    assert "Leaving Paper Data Suite" in output.getvalue()
+    assert output.getvalue().count("Teacher Home") == 1

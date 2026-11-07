@@ -12,10 +12,15 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import TextIO
 
+from paper_data_suite.application_launching import (
+    ApplicationLaunchExecutionError,
+    ApplicationLaunchRefusedError,
+)
 from paper_data_suite.applications import (
     ApplicationInventory,
     ApplicationInventoryError,
     ApplicationLaunchStatus,
+    ApplicationObservation,
 )
 from paper_data_suite.evergreen_local_application_inventory import (
     collect_local_launch_inventory,
@@ -39,6 +44,8 @@ class HomeApplication:
     purpose: str
     status: str
     selectable: bool
+    unavailable_reason: str
+    remediation: str
 
 
 _WORKFLOWS: tuple[tuple[str, str, str], ...] = (
@@ -133,6 +140,45 @@ def _status_label(status: ApplicationLaunchStatus) -> str:
     }[status]
 
 
+def _safe_unavailable_details(
+    observed: ApplicationObservation | None,
+) -> tuple[str, str]:
+    """Give actionable categories without echoing unchecked metadata or paths.
+
+    The authoritative detail remains ``pds modules``. Producer/package error
+    strings can contain private installation paths or active terminal controls,
+    so they must never be interpolated into Suite's interactive home.
+    """
+    if observed is None:
+        return (
+            "Current-environment inventory could not establish launch eligibility.",
+            "Run pds modules to inspect and repair the local installation.",
+        )
+    if observed.status is ApplicationLaunchStatus.NOT_INSTALLED:
+        return (
+            "The approved application is not installed in this Python environment.",
+            "Install its official module wheel into this environment, then rerun "
+            "pds modules.",
+        )
+    if observed.status is ApplicationLaunchStatus.INCOMPATIBLE:
+        return (
+            "Installed dependency or entry-point metadata did not qualify.",
+            "Run pds modules to identify the incompatible component and repair it "
+            "before launching.",
+        )
+    if observed.status is ApplicationLaunchStatus.UNAVAILABLE:
+        return (
+            "The approved current-environment application launcher is unavailable.",
+            "Run pds modules to inspect launcher resolution and remediation.",
+        )
+    if observed.launcher_path is None:
+        return (
+            "Local metadata qualified but no approved launcher was resolved.",
+            "Run pds modules and repair the current-environment launcher.",
+        )
+    return ("", "")
+
+
 def build_home_applications(
     inventory: ApplicationInventory | None,
 ) -> tuple[HomeApplication, ...]:
@@ -147,6 +193,7 @@ def build_home_applications(
             and found.status is ApplicationLaunchStatus.AVAILABLE
             and found.launcher_path is not None
         )
+        explanation, remediation = _safe_unavailable_details(found)
         rows.append(
             HomeApplication(
                 component_id=approved.component_id,
@@ -162,6 +209,8 @@ def build_home_applications(
                     else "unavailable"
                 ),
                 selectable=usable,
+                unavailable_reason=explanation,
+                remediation=remediation,
             )
         )
     return tuple(rows)
@@ -181,7 +230,7 @@ def _choice(input_stream: TextIO, output: TextIO) -> str | None:
     output.flush()
     try:
         entered = input_stream.readline()
-    except (EOFError, KeyboardInterrupt):
+    except (EOFError, KeyboardInterrupt, OSError, UnicodeError):
         return None
     if not entered:
         return None
@@ -258,8 +307,9 @@ def _launch(
     if not app.selectable:
         header.print("Application Unavailable", output=output)
         output.write(
-            f"{app.display_name} cannot be launched ({app.status}). "
-            "Run pds modules for the current reason and remediation.\n"
+            f"{app.display_name} cannot be launched ({app.status}).\n"
+            f"Reason: {app.unavailable_reason}\n"
+            f"Next step: {app.remediation}\n"
         )
         return
     # CLI's existing _run_launch() is the authorization, action-time inventory
@@ -271,6 +321,16 @@ def _launch(
     except KeyboardInterrupt:
         header.print("Application Result", output=output)
         output.write("Application launch interrupted; returning to Teacher Home.\n")
+        return
+    except (ApplicationLaunchExecutionError, ApplicationLaunchRefusedError, OSError):
+        # Bounded launcher failures should not end the interactive Suite shell.
+        # Do not print raw exception text: it may contain private local paths.
+        header.print("Application Result", output=output)
+        output.write(
+            "Application launch was refused or could not start. "
+            "Run pds modules for current-environment diagnostics. "
+            "Returning to Teacher Home.\n"
+        )
         return
     header.print("Application Result", output=output)
     if result == 0:
