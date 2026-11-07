@@ -788,5 +788,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "launch":
         return dispatch_launch(arguments, historical_launch=_run_launch)
+    if arguments.command is None:
+        # Zero-argument automation and captured/subprocess runs retain CLI help.
+        # Import the home only for genuine interactive input AND output.
+        from paper_data_suite.teacher_home import (
+            is_interactive_terminal,
+            run_teacher_home,
+        )
+
+        if is_interactive_terminal(input_stream=sys.stdin, output=sys.stdout):
+            return run_teacher_home(
+                input_stream=sys.stdin,
+                output=sys.stdout,
+                launch=_run_launch,
+                doctor=lambda: main(("doctor",)),
+                show_help=parser.print_help,
+            )
     parser.print_help()
     return 0
