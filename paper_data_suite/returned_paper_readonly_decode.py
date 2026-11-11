@@ -20,6 +20,7 @@ from typing import Callable, Final, Literal, Protocol
 
 from paper_data_suite.returned_paper_preview_contract import (
     PagePreview,
+    RegistrationStatus,
     SourcePreview,
 )
 
@@ -99,6 +100,12 @@ class ParsedLocator(Protocol):
 
 
 PayloadParser = Callable[[str], ParsedLocator]
+RegistrationCheck = Callable[[int, int, ParsedLocator], RegistrationStatus]
+
+_VALID_REGISTRATION_STATUSES = frozenset({
+    "not_checked", "workspace_unavailable", "registration_not_found",
+    "registration_invalid", "registration_inactive", "structurally_consistent",
+})
 
 
 class DecoderBackendUnavailable(RuntimeError):
@@ -297,7 +304,8 @@ def decode_with_optional_backends(
 
 def _observe_page(
     number: int, observation: DecodedPage, limits: DecodeLimits,
-    parser: PayloadParser,
+    parser: PayloadParser, source_number: int,
+    registration_check: RegistrationCheck | None,
 ) -> PagePreview:
     if observation.failed:
         return PagePreview(number, "page_decode_failed")
@@ -314,9 +322,21 @@ def _observe_page(
         if len(text) > limits.max_code_length:
             return PagePreview(number, "invalid_or_foreign_qr")
         locator = parser(text)
-        return PagePreview(number, "candidate_unverified", locator.module_id)
     except (TypeError, ValueError, AttributeError):
         return PagePreview(number, "invalid_or_foreign_qr")
+    status: RegistrationStatus = "not_checked"
+    if registration_check is not None:
+        try:
+            observed_status = registration_check(source_number, number, locator)
+            if observed_status in _VALID_REGISTRATION_STATUSES:
+                status = observed_status
+            else:
+                status = "registration_invalid"
+        except Exception:
+            # An explicit checker failure cannot change QR interpretation or
+            # expose a private registration/route exception in the preview.
+            status = "registration_invalid"
+    return PagePreview(number, "candidate_unverified", locator.module_id, status)
 
 
 def observe_selected_sources(
@@ -325,6 +345,7 @@ def observe_selected_sources(
     limits: DecodeLimits = DecodeLimits(),
     decoder: PageDecoder = decode_with_optional_backends,
     parse_payload: PayloadParser = _core_parse,
+    registration_check: RegistrationCheck | None = None,
 ) -> tuple[SourcePreview, ...]:
     """Return v1 SourcePreview rows without any reads outside selected sources.
 
@@ -353,7 +374,9 @@ def observe_selected_sources(
             ):
                 raise DecodeResourceLimit("invalid decoder page count")
             pages = tuple(
-                _observe_page(idx, item, limits, parse_payload)
+                _observe_page(
+                    idx, item, limits, parse_payload, number, registration_check,
+                )
                 for idx, item in enumerate(page_data, start=1)
             )
             found.append(SourcePreview(
