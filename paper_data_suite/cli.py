@@ -269,6 +269,27 @@ def build_parser() -> argparse.ArgumentParser:
             "APPLY authorizes Core writes."
         ),
     )
+    papers = subparsers.add_parser(
+        "papers",
+        help="inspect explicitly selected returned papers without processing",
+        description=(
+            "Read-only returned-paper preflight. No retention, dispatch, "
+            "grades, or automatic inbox discovery."
+        ),
+    )
+    papers.set_defaults(papers_parser=papers)
+    paper_subparsers = papers.add_subparsers(dest="papers_command")
+    preview = paper_subparsers.add_parser(
+        "preview",
+        help="inspect QR candidates and unresolved pages (read-only)",
+    )
+    preview.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        action="append",
+        help="selected PDF, JPEG or PNG; repeat for multiple sources",
+    )
     modules = subparsers.add_parser(
         "modules",
         help="list installed approved applications or preview signed claims",
@@ -766,6 +787,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise AssertionError(f"unhandled backup command: {arguments.backup_command}")
     if arguments.command == "setup":
         return run_classroom_setup()
+    if arguments.command == "papers":
+        if arguments.papers_command is None:
+            arguments.papers_parser.print_help()
+            return 0
+        if arguments.papers_command == "preview":
+            from paper_data_suite.returned_paper_preflight import (
+                run_readonly_papers_preview,
+            )
+            return run_readonly_papers_preview(tuple(arguments.source))
+        raise AssertionError(f"unhandled papers command: {arguments.papers_command}")
     if arguments.command == "modules":
         return _run_modules(
             catalog_cache=arguments.catalog_cache,
