@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import struct
+import zlib
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,12 +31,47 @@ def _parse(value: str) -> SimpleNamespace:
 
 
 def _png_bytes() -> bytes:
-    from PIL import Image
+    """Create a valid 8x8 white PNG without optional image dependencies."""
+    width = height = 8
 
-    with Image.new("RGB", (8, 8), "white") as image:
-        stream = BytesIO()
-        image.save(stream, format="PNG")
-        return stream.getvalue()
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        content = kind + payload
+        return (
+            struct.pack(">I", len(payload))
+            + content
+            + struct.pack(">I", zlib.crc32(content))
+        )
+
+    rgb_rows = (b"\x00" + b"\xff\xff\xff" * width) * height
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(rgb_rows))
+        + chunk(b"IEND", b"")
+    )
+
+
+def test_stdlib_png_fixture_has_valid_rgb_pixels_and_crc() -> None:
+    """Core-only CI must not need Pillow merely to create input bytes."""
+    image = _png_bytes()
+    assert image.startswith(b"\x89PNG\r\n\x1a\n")
+    offset = 8
+    chunks: list[tuple[bytes, bytes]] = []
+    while offset < len(image):
+        length = struct.unpack_from(">I", image, offset)[0]
+        kind = image[offset + 4:offset + 8]
+        payload = image[offset + 8:offset + 8 + length]
+        actual_crc = struct.unpack_from(">I", image, offset + 8 + length)[0]
+        assert actual_crc == zlib.crc32(kind + payload)
+        chunks.append((kind, payload))
+        offset += 12 + length
+    assert offset == len(image)
+    assert [kind for kind, _ in chunks] == [b"IHDR", b"IDAT", b"IEND"]
+    assert chunks[0][1] == struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0)
+    assert zlib.decompress(chunks[1][1]) == (
+        b"\x00" + b"\xff\xff\xff" * 8
+    ) * 8
 
 
 def _source(tmp_path: Path, *, suffix: str = ".png", data: bytes | None = None) -> Path:
@@ -282,6 +319,7 @@ def test_real_png_and_multipage_pdf_qr_smoke_when_backends_available(
     pdfium = pytest.importorskip("pypdfium2")
     qrcode = pytest.importorskip("qrcode")
     pytest.importorskip("reportlab")
+    pytest.importorskip("PIL")
     from PIL import Image
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen.canvas import Canvas
@@ -315,6 +353,7 @@ def test_real_pdfium_page_renderer_with_injected_qr_reader() -> None:
     """Exercises actual PDFium/PIL resource handling without relying on zxing-cpp."""
     pytest.importorskip("pypdfium2")
     pytest.importorskip("reportlab")
+    pytest.importorskip("PIL")
     from reportlab.pdfgen.canvas import Canvas
 
     from paper_data_suite.returned_paper_readonly_decode import _pdf_pages
