@@ -290,6 +290,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         help="selected PDF, JPEG or PNG; repeat for multiple sources",
     )
+    inbox = paper_subparsers.add_parser(
+        "inbox",
+        help="list or explicitly select Core scans_inbox files (read-only)",
+        description=(
+            "List only an explicitly selected, bounded Core scans_inbox. "
+            "For a preview, --select must be paired with --snapshot from a "
+            "prior listing. No retention or dispatch."
+        ),
+    )
+    inbox.add_argument(
+        "--workspace",
+        required=True,
+        type=Path,
+        help="explicit existing Core workspace root; never auto-selected",
+    )
+    inbox.add_argument(
+        "--select",
+        type=int,
+        action="append",
+        help="one-based inventory position to preview; repeat at most eight",
+    )
+    inbox.add_argument(
+        "--snapshot",
+        help="64-character lowercase digest from the selected inbox listing",
+    )
     modules = subparsers.add_parser(
         "modules",
         help="list installed approved applications or preview signed claims",
@@ -796,6 +821,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_readonly_papers_preview,
             )
             return run_readonly_papers_preview(tuple(arguments.source))
+        if arguments.papers_command == "inbox":
+            from paper_data_suite.returned_paper_inbox import run_selected_inbox
+
+            return run_selected_inbox(
+                arguments.workspace,
+                selected=tuple(arguments.select or ()),
+                snapshot=arguments.snapshot,
+            )
         raise AssertionError(f"unhandled papers command: {arguments.papers_command}")
     if arguments.command == "modules":
         return _run_modules(
