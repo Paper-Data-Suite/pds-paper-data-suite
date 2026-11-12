@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "fixtures_are_synthetic": true,
+  "source_cases": [
+    {
+      "id": "mixed_twelve_pages",
+      "source_status": "observed",
+      "module_ids": ["scoreform", "quillan", "concord", "vitrine", "portia", "unknown", "scoreform"],
+      "page_statuses": ["candidate_unverified", "candidate_unverified", "candidate_unverified", "candidate_unverified", "missing_qr", "ambiguous_qr", "invalid_or_foreign_qr", "unreadable_qr", "page_decode_failed", "candidate_unverified", "candidate_unverified", "candidate_unverified"]
+    },
+    {"id": "unsupported_source", "source_status": "unsupported_format", "page_statuses": []},
+    {"id": "no_backend", "source_status": "backend_unavailable", "page_statuses": []},
+    {"id": "too_large", "source_status": "resource_limit", "page_statuses": []}
+  ],
+  "decoded_qr_cases": [
+    {"id": "scoreform", "text": "PDS2|m=scoreform|c=english9_p2|w=quiz|r=rt_0123456789abcdef0123456789abcdef", "expected": "candidate_unverified", "module_id": "scoreform"},
+    {"id": "quillan", "text": "PDS2|m=quillan|c=english12_p4|w=memoir|r=rt_1123456789abcdef0123456789abcdef", "expected": "candidate_unverified", "module_id": "quillan"},
+    {"id": "concord", "text": "PDS2|m=concord|c=english11_p3|w=demeter|r=rt_2123456789abcdef0123456789abcdef", "expected": "candidate_unverified", "module_id": "concord"},
+    {"id": "vitrine", "text": "PDS2|m=vitrine|c=english12_p4|w=portfolio|r=rt_3123456789abcdef0123456789abcdef", "expected": "candidate_unverified", "module_id": "vitrine"},
+    {"id": "portia_not_published", "text": "PDS2|m=portia|c=english12_p4|w=capture|r=rt_4123456789abcdef0123456789abcdef", "expected": "candidate_unverified", "module_id": "portia"},
+    {"id": "unknown_module", "text": "PDS2|m=unknown|c=english12_p4|w=worksheet|r=rt_5123456789abcdef0123456789abcdef", "expected": "candidate_unverified", "module_id": "unknown"},
+    {"id": "legacy_schema", "text": "PDS1|m=scoreform|c=a|w=b|r=rt_a", "expected": "invalid_or_foreign_qr"},
+    {"id": "omr_schema", "text": "OMR1|student=someone", "expected": "invalid_or_foreign_qr"},
+    {"id": "duplicate_key", "text": "PDS2|m=quillan|m=scoreform|w=essay|r=rt_abcdef", "expected": "invalid_or_foreign_qr"},
+    {"id": "unicode", "text": "PDS2|m=quillan|c=engñ|w=essay|r=rt_abcdef", "expected": "invalid_or_foreign_qr"},
+    {"id": "oversized", "text": "PDS2|m=quillan|c=abcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxy|w=essay|r=rt_abcdef", "expected": "invalid_or_foreign_qr"}
+  ]
+}
