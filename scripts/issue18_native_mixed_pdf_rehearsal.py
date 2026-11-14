@@ -1,3 +1,5 @@
+# mypy: disable-error-code="import-not-found, import-untyped"
+# Optional producer/native imports are verified in isolated wheel acceptance.
 """Native two-page PDS2 PDF, Core custody and real dispatch qualification.
 
 This is an explicit, disposable **synthetic-only** acceptance harness.

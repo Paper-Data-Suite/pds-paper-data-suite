@@ -1,3 +1,5 @@
+# mypy: disable-error-code="import-not-found, import-untyped"
+# Optional producer/native imports are verified in isolated wheel acceptance.
 """Real Core/Quillan/ScoreForm synthetic handler contract rehearsal.
 
 Requires a separately installed, exact official-wheel environment. Test data

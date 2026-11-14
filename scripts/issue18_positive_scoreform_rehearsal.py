@@ -1,3 +1,5 @@
+# mypy: disable-error-code="import-not-found, import-untyped"
+# Optional producer/native imports are verified in isolated wheel acceptance.
 """Isolated official-wheel positive ScoreForm scoring qualification for Suite #18.
 
 This is NOT a teacher command, replay mechanism, or production scoring pathway.
