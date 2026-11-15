@@ -124,7 +124,8 @@ def run_readonly_teacher_papers(
         output.write(
             "\nThis is read-only: files are not retained, routed or scored.\n"
             "1. Preview explicitly selected local files\n"
-            "Core inbox selection and processing will follow in later slices.\n"
+            "2. Select Core inbox entries and physical pages (read-only)\n"
+            "Actual processing requires separate approval in later slices.\n"
             "\nH. Help   B. Back   M. Main Menu   Q. Quit\n"
         )
         try:
@@ -136,12 +137,28 @@ def run_readonly_teacher_papers(
             if choice == "h":
                 output.write(
                     "Choose 1 to type 1-8 absolute PDF, PNG, or JPEG filenames.\n"
+                    "Choose 2 to list an explicitly chosen Core inbox and "
+                    "review selected physical pages.\n"
                     "A file path is data, not a command. Blank cancels selection.\n"
                     "No route, score, grade or Core custody is authorized.\n"
                 )
                 continue
+            if choice == "2":
+                from paper_data_suite.returned_paper_teacher_inbox import (
+                    run_readonly_teacher_inbox,
+                )
+
+                navigation = run_readonly_teacher_inbox(
+                    input_stream=input_stream, output=output,
+                    show_header=show_header,
+                )
+                if navigation == "quit":
+                    return True
+                if navigation == "home":
+                    return False
+                continue
             if choice != "1":
-                output.write("Choose 1, H, B, M, or Q.\n")
+                output.write("Choose 1, 2, H, B, M, or Q.\n")
                 continue
             paths = _selected_paths(input_stream, output)
             if paths is None:
