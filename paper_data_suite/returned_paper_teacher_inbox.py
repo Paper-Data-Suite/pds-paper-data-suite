@@ -270,6 +270,7 @@ def run_readonly_teacher_inbox(
         output.write(
             "P. Review processing plan (read-only; NO retention)\n"
         )
+        reviewed_once = False
         while True:
             move = _input(
                 input_stream, output,
@@ -313,9 +314,67 @@ def run_readonly_teacher_inbox(
                     return "back"
                 show_header("Returned Papers - Plan Review Only")
                 output.write("\n" + summary)
+                reviewed_once = True
+                output.write(
+                    "R. Retain whole selected files (new consent required)\n"
+                )
                 continue
+            if move.casefold() == "r":
+                if not reviewed_once:
+                    output.write(
+                        "Review the plan with P before requesting "
+                        "Core custody. No retention attempted.\n"
+                    )
+                    continue
+                try:
+                    # The old review does not authorize action: re-list
+                    # and re-observe at the consequential boundary.
+                    latest = list_inbox(root)
+                    if (
+                        not isinstance(latest, InboxInventory)
+                        or latest.snapshot != current.snapshot
+                        or len(latest.entries) != len(current.entries)
+                        or any(
+                            latest.entries[index - 1].status != "eligible"
+                            for index in selected
+                        )
+                        or tuple(
+                            latest.entries[index - 1].source
+                            for index in selected
+                        ) != paths
+                    ):
+                        raise _Invalid
+                    fresh = preview(paths)
+                    if (
+                        not isinstance(fresh, IntakePreview)
+                        or fresh != observed
+                        or fresh.processing_performed is not False
+                    ):
+                        raise _Invalid
+                    from paper_data_suite.returned_paper_processing_contract import (
+                        build_processing_plan,
+                    )
+
+                    plan = build_processing_plan(
+                        root, paths, fresh, selection.physical_pages
+                    )
+                except (Exception, KeyboardInterrupt):
+                    output.write(
+                        "Core custody request refused: selected inbox "
+                        "or source changed. No retention attempted.\n"
+                    )
+                    return "back"
+                from paper_data_suite.returned_paper_teacher_retention import (
+                    run_teacher_first_retention,
+                )
+
+                # Never loop back into an automatic second custody call.
+                return run_teacher_first_retention(
+                    plan, input_stream=input_stream, output=output,
+                    show_header=show_header,
+                )
             output.write(
-                "Choose P, B, M, or Q. No processing occurred.\n"
+                "Choose P, R, B, M, or Q. No processing occurred.\n"
             )
     except _Closed:
         return "quit"
