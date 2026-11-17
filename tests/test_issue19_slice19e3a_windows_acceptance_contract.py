@@ -57,6 +57,7 @@ def test_only_exact_approved_wheel_versions() -> None:
     assert "paper_data_suite-0.1.0-py3-none-any.whl" in source
     assert "pypdfium2>=5.13,<6" in source
     assert "zxing-cpp>=2.3,<3" in source
+    assert "Pillow>=11,<13" in source
 
 
 def test_no_arbitrary_dispatch_approval_from_a_diagnostic() -> None:

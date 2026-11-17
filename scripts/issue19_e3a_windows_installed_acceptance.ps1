@@ -126,7 +126,7 @@ if (-not $AllowPyPI.IsPresent) {
 }
 $install += $published
 $install += $suiteWheels[0].FullName
-$install += @('pypdfium2>=5.13,<6', 'zxing-cpp>=2.3,<3')
+$install += @('pypdfium2>=5.13,<6', 'zxing-cpp>=2.3,<3', 'Pillow>=11,<13')
 Write-Host ('DEPENDENCY_MODE=' + $(if ($AllowPyPI.IsPresent) { 'explicit PyPI permitted' } else { 'offline wheels only' }))
 & $installedPython -m pip @install
 Assert-Exit 'Install pinned candidates and bounded native dependencies'
