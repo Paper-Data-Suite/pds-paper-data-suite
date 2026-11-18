@@ -264,7 +264,16 @@ def run_teacher_retained_paper_dispatch(
     if batch.status == "blocked":
         return finish("preparation_refused")
     if batch.status == "no_dispatchable_pages":
-        return finish("no_dispatchable_pages")
+        from paper_data_suite.returned_paper_teacher_preparation import (
+            render_manual_only_followup,
+        )
+        try:
+            manual = render_manual_only_followup(batch)
+        except (Exception, KeyboardInterrupt):
+            return finish("preparation_uncertain")
+        result = finish("no_dispatchable_pages")
+        output.write(manual)
+        return result
     if batch.status != "ready" or not batch.candidates:
         return finish("preparation_refused")
     output.write(

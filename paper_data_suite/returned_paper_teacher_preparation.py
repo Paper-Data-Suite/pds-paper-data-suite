@@ -89,6 +89,74 @@ def render_retained_request_review(batch: PreparedDispatchBatchV1) -> str:
         "No producer handlers, grades, or student records were written here.",
         "A separately reviewed, freshly admitted second dispatch action is required.",
     ))
+    if batch.status == "no_dispatchable_pages":
+        lines.append(render_manual_only_followup(batch).rstrip("\n"))
+    return "\n".join(lines) + "\n"
+
+
+def render_manual_only_followup(batch: PreparedDispatchBatchV1) -> str:
+    """Show every selected unresolved page; never invent Core failure IDs.
+
+    This is a verified #18 *preparation* report, not Core dispatch or v2
+    failure metadata. The only permitted follow-up is manual inspection.
+    """
+    if (
+        not isinstance(batch, PreparedDispatchBatchV1)
+        or batch.status != "no_dispatchable_pages"
+        or batch.reason != "no_valid_selected_routes"
+        or batch.candidates
+    ):
+        raise TeacherPreparationReviewError("manual-only preparation required")
+    report = batch.report
+    selected = {
+        (item.source_number, item.page_number)
+        for item in report.plan.selected_pages
+    }
+    if not 1 <= len(selected) <= 512 or len(report.sources) > 8:
+        raise TeacherPreparationReviewError("invalid manual-only page count")
+    unresolved: list[tuple[int, int]] = []
+    not_selected = 0
+    for source in report.sources:
+        for page in source.pages:
+            position = (source.source_number, page.page_number)
+            if position not in selected:
+                if page.status != "not_selected":
+                    raise TeacherPreparationReviewError("unselected page was changed")
+                not_selected += 1
+                continue
+            if (
+                source.retention_status != "retained"
+                or source.retained_source is None
+                or page.status != "unresolved_qr"
+                or page.route_locator is not None
+                or page.failure_category is not None
+                or page.failure_id is not None
+            ):
+                raise TeacherPreparationReviewError(
+                    "unresolved page contradicts Core preparation"
+                )
+            unresolved.append(position)
+    if len(unresolved) != len(selected):
+        raise TeacherPreparationReviewError("selected pages not fully accounted for")
+    lines = [
+        "Manual-only follow-up - NO Core dispatch result",
+        f"Selected unresolved physical pages: {len(unresolved)}.",
+        f"Unselected physical pages: {not_selected} (not processed).",
+        "Selected pages, in physical source/page order:",
+    ]
+    lines.extend(
+        f"  Source {source}, page {page}: QR unresolved; inspect manually."
+        for source, page in unresolved
+    )
+    lines.extend((
+        "Retained-byte preparation found NO valid Core route requests.",
+        "No second DISPATCH approval or producer handler occurred in this view.",
+        "No verified Core failure ID is present; DEFER is unavailable here.",
+        "Inspect the paper/QR and use an independently qualified producer's",
+        "normal review workflow if its ownership can be verified manually.",
+        "Core already retains the approved source file(s); do not re-retain",
+        "or blindly retry. No response, score, or published grade is claimed.",
+    ))
     return "\n".join(lines) + "\n"
 
 
@@ -141,5 +209,6 @@ def review_core_retained_requests(
 __all__ = (
     "TeacherPreparationReviewError",
     "render_retained_request_review",
+    "render_manual_only_followup",
     "review_core_retained_requests",
 )
