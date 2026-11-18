@@ -177,6 +177,11 @@ def render_teacher_dispatch_action(result: TeacherDispatchActionResultV1) -> str
             lines.append(
                 "Review incomplete or uncertain pages; no automatic replay."
             )
+        from paper_data_suite.returned_paper_teacher_results import (
+            render_core_paper_results,
+        )
+
+        lines.append(render_core_paper_results(core).rstrip("\n"))
     lines.extend((
         "A handler return is NOT confirmed evidence capture or a grade.",
         "No grade publication is asserted; no automatic retry is allowed.",
