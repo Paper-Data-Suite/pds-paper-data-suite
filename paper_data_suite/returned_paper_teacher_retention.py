@@ -227,43 +227,18 @@ def run_teacher_first_retention(
     show_header("Core Source Retention — Result")
     output.write("\n" + report)
     if result.status == "retained" and result.approved:
-        # Never prepare merely because consent succeeded. This is an explicit
-        # fresh read of verified Core-retained bytes, NOT a second consent.
-        output.write(
-            "V. View prepared Core-retained page requests (READ ONLY)\n"
-            "B. Back   M. Main Menu   Q. Quit\nSelection: "
+        # #19E3B3 keeps the one first-consent Core receipt local. Reading V
+        # and choosing D never repeat retention or reuse a consent challenge.
+        from paper_data_suite.returned_paper_teacher_dispatch_menu import (
+            run_post_retention_teacher_menu,
         )
-        output.flush()
-        try:
-            choice = input_stream.readline(_MAX_ANSWER + 2)
-        except (EOFError, KeyboardInterrupt, OSError, UnicodeError):
-            return navigation
-        if not choice or len(choice) > _MAX_ANSWER + 1:
-            return navigation
-        if any(ord(char) < 32 and char not in "\r\n" for char in choice):
-            return navigation
-        action = choice.strip().casefold()
-        if action == "m":
-            return "home"
-        if action == "q":
-            return "quit"
-        if action == "v":
-            # Retained receipt is local to this one completed custody action.
-            # Do not persist, qualify, dispatch or auto-retry it.
-            try:
-                from paper_data_suite.returned_paper_teacher_preparation import (
-                    review_core_retained_requests,
-                )
 
-                summary = review_core_retained_requests(result)
-            except (Exception, KeyboardInterrupt):
-                output.write(
-                    "Retained-page preparation unavailable or uncertain; "
-                    "no producer handler was invoked. Reconcile Core records.\n"
-                )
-            else:
-                show_header("Retained Core Pages - Preparation Review Only")
-                output.write("\n" + summary)
+        return run_post_retention_teacher_menu(
+            result,
+            input_stream=input_stream,
+            output=output,
+            show_header=show_header,
+        )
     return navigation
 
 
