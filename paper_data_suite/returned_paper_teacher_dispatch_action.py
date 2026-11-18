@@ -222,10 +222,26 @@ def run_teacher_retained_paper_dispatch(
         status: BridgeStatus, core_review: CoreReviewResultV1 | None = None,
     ) -> TeacherDispatchActionResultV1:
         result = TeacherDispatchActionResultV1(status, core_review)
+        if core_review is not None:
+            output.write("Stage: Core returned; reporting verified page outcomes.\n")
+        elif status == "uncertain":
+            output.write(
+                "Stage: Core result unavailable; producer effects may "
+                "have occurred.\n"
+            )
+        else:
+            output.write(
+                "Stage: stopped without a verified Core dispatch "
+                "result.\n"
+            )
         show_header("Returned Papers - Core Processing Result")
         output.write("\n" + render_teacher_dispatch_action(result))
         return result
 
+    output.write(
+        "Stage: first teacher consent reported Core retention; "
+        "verifying before dispatch.\n"
+    )
     # Never decode teacher pages or display a dispatch prompt on an unsupported
     # installed environment. Neither this nor first retention creates authority.
     if not _currently_admitted(wheelhouse):
@@ -233,6 +249,10 @@ def run_teacher_retained_paper_dispatch(
     root = retention.report.plan.workspace_root
     if not _workspace_matches(root):
         return finish("workspace_refused")
+    output.write(
+        "Stage: installed producer admission and active Core workspace "
+        "verified for this attempt.\n"
+    )
     try:
         batch = prepare_retained_pds2_requests(retention)
     except (Exception, KeyboardInterrupt):
@@ -247,6 +267,10 @@ def run_teacher_retained_paper_dispatch(
         return finish("no_dispatchable_pages")
     if batch.status != "ready" or not batch.candidates:
         return finish("preparation_refused")
+    output.write(
+        f"Stage: {len(batch.candidates)} Core-retained page request(s) "
+        "prepared; no producer is authorized yet.\n"
+    )
 
     admission_changed = False
 
@@ -263,6 +287,10 @@ def run_teacher_retained_paper_dispatch(
         ):
             admission_changed = True
             return cancel
+        output.write(
+            "Stage: second teacher consent pending; no handler "
+            "has run for this action.\n"
+        )
         try:
             decision = ask_teacher_second_dispatch_consent(
                 review,
@@ -285,6 +313,15 @@ def run_teacher_retained_paper_dispatch(
         if not _currently_admitted(wheelhouse) or not _workspace_matches(root):
             admission_changed = True
             return cancel
+        # Core will still check retained bytes before any handler attempt.
+        # The synchronous service exposes no live per-page progress.
+        output.write(
+            "Stage: second consent confirmed; handing the batch to "
+            "Core for revalidation and possible handler execution.\n"
+            "Processing is synchronous; do not close this session. "
+            "Live per-page progress is unavailable.\n"
+        )
+        output.flush()
         return decision
 
     try:
