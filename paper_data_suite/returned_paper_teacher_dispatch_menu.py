@@ -157,13 +157,33 @@ def run_post_retention_teacher_menu(
                 run_teacher_retained_paper_dispatch,
             )
 
-            run_teacher_retained_paper_dispatch(
+            dispatch_result = run_teacher_retained_paper_dispatch(
                 retention,
                 wheelhouse,
                 input_stream=input_stream,
                 output=output,
                 show_header=show_header,
             )
+            # A Core review is an ephemeral in-session result, not a new
+            # producer request or a durable Suite review queue.
+            from paper_data_suite.returned_paper_teacher_dispatch_action import (
+                TeacherDispatchActionResultV1,
+            )
+
+            if (
+                isinstance(dispatch_result, TeacherDispatchActionResultV1)
+                and dispatch_result.core_review is not None
+            ):
+                from paper_data_suite.returned_paper_teacher_recovery import (
+                    run_teacher_core_review_menu,
+                )
+
+                return run_teacher_core_review_menu(
+                    dispatch_result.core_review,
+                    input_stream=input_stream,
+                    output=output,
+                    show_header=show_header,
+                )
         except (Exception, KeyboardInterrupt):
             # The bridge may have called a handler before its failure. Never
             # report clean rollback, never call it again, never print details.
