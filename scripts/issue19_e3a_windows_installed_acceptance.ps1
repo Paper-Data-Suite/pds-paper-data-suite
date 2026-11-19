@@ -4,7 +4,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Wheelhouse,
-    [switch]$AllowPyPI
+    [switch]$AllowPyPI,
+    [switch]$IncludeTeacherHome
 )
 
 $ErrorActionPreference = 'Stop'
@@ -188,6 +189,17 @@ try {
             Assert-Exit ('Real synthetic installed acceptance: ' + $script)
         }
         Write-Host 'SUITE19_E3A_REAL_PRODUCER_HANDLERS_VERIFIED'
+        if ($IncludeTeacherHome.IsPresent) {
+            $homeScript = Join-Path $snapshot `
+                'scripts\issue19_g1_installed_teacher_home_rehearsal.py'
+            if (-not (Test-Path -LiteralPath $homeScript -PathType Leaf)) {
+                throw 'Committed G1 installed Home rehearsal is unavailable.'
+            }
+            & $installedPython $homeScript `
+                --synthetic-parent $session --wheelhouse $wheelhousePath
+            Assert-Exit 'G1 actual installed Teacher Home native journey'
+            Write-Host 'SUITE19_G1_ACTUAL_INSTALLED_HOME_VERIFIED'
+        }
     } finally {
         Pop-Location
     }
@@ -196,5 +208,11 @@ try {
 }
 Write-Host 'SUITE19_E3A_SYNTHETIC_INSTALLED_ACCEPTANCE_PASSED'
 Write-Host 'SUITE19_E3A_DISPATCH_REMAINS_DEFAULT_DENY'
-Write-Host 'Only disposable synthetic records were used; teacher UI not exercised.'
+if ($IncludeTeacherHome.IsPresent) {
+    Write-Host ('Only disposable synthetic records were used; ' + `
+        'G1 exercised installed Teacher Home.')
+} else {
+    Write-Host ('Only disposable synthetic records were used; ' + `
+        'teacher UI not exercised.')
+}
 Write-Host 'The separate #19E/19G live policy and Teacher Home gate remain pending.'
