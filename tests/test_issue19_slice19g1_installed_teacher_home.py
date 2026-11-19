@@ -30,6 +30,14 @@ def test_all_four_teacher_journeys_bind_separate_consents(tmp_path: Path) -> Non
     assert "DISPATCH" not in cases["cancel_second"]
     assert cases["dispatch"].count("RETAIN") == 1
     assert cases["dispatch"].count("DISPATCH") == 1
+    # Q must be issued at Teacher Home after explicit Back navigation.
+    # Quitting inside the papers submenu skips the Home farewell message.
+    assert cases["cancel_first"].splitlines()[-3:] == ["CANCEL", "B", "Q"]
+    assert cases["retain_only"].splitlines()[-4:] == ["V", "B", "B", "Q"]
+    assert cases["cancel_second"].splitlines()[-4:] == [
+        "CANCEL", "B", "B", "Q",
+    ]
+    assert cases["dispatch"].splitlines()[-3:] == ["DISPATCH", "B", "Q"]
     with pytest.raises(home.HomeAcceptanceRefused):
         home._transcript(root, decision="inferred_approve", wheelhouse=wheels)
 
@@ -133,3 +141,51 @@ def test_e3a_opt_in_integration_does_not_change_default() -> None:
     assert "Assert-Exit 'G1 actual installed Teacher Home native journey'" in value
     assert "SUITE19_G1_ACTUAL_INSTALLED_HOME_VERIFIED" in value
     assert "SUITE19_E3A_SYNTHETIC_INSTALLED_ACCEPTANCE_PASSED" in value
+
+
+def test_native_refusal_reports_scenario_with_allowlisted_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    wheels = tmp_path / "wheels"
+    wheels.mkdir()
+
+    def fail(_parent: Path, _wheels: Path, scenario: str) -> None:
+        assert scenario == "cancel_first"
+        raise home.HomeAcceptanceRefused(
+            "installed interactive Home not completed"
+        )
+
+    monkeypatch.setattr(home, "_run_case", fail)
+    assert home.main([
+        "--synthetic-parent", str(tmp_path),
+        "--wheelhouse", str(wheels),
+    ]) == 2
+    reported = capsys.readouterr()
+    assert "SUITE19_G1_HOME_CANCEL_FIRST_STARTED" in reported.out
+    assert "SUITE19_G1_HOME_FAILED_SCENARIO=cancel_first" in reported.err
+    assert "SUITE19_G1_HOME_FAILURE_CODE=home_exit" in reported.err
+    assert "ACCEPTANCE_PASSED" not in reported.out
+
+
+def test_unknown_failure_does_not_echo_sensitive_details(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    wheels = tmp_path / "wheels"
+    wheels.mkdir()
+
+    def fail(_parent: Path, _wheels: Path, _scenario: str) -> None:
+        raise home.HomeAcceptanceRefused("SENSITIVE PDS2| C:/private/student")
+
+    monkeypatch.setattr(home, "_run_case", fail)
+    assert home.main([
+        "--synthetic-parent", str(tmp_path),
+        "--wheelhouse", str(wheels),
+    ]) == 2
+    reported = capsys.readouterr()
+    assert "SUITE19_G1_HOME_FAILURE_CODE=unclassified" in reported.err
+    assert "SENSITIVE" not in reported.err
+    assert "PDS2|" not in reported.err
+    assert "private/student" not in reported.err
+    assert "ACCEPTANCE_PASSED" not in reported.out

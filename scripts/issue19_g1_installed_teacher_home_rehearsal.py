@@ -23,6 +23,38 @@ class HomeAcceptanceRefused(RuntimeError):
     """A synthetic installed Home observation was missing or contradicted."""
 
 
+# Only predefined harness messages become public diagnostic categories. Never
+# emit exception bodies, user paths, producer output or the scripted transcript.
+_FAILURE_CODES: dict[str, str] = {
+    "unsupported scripted consent scenario": "invalid_scenario",
+    "Core workspace did not select temp root": "workspace_selection",
+    "installed Suite Home returned nonzero": "cli_nonzero",
+    "installed interactive Home not completed": "home_exit",
+    "Home printed private QR or ANSI despite NO_COLOR": "unsafe_output",
+    "synthetic workspace is not a fresh temp root": "workspace_not_fresh",
+    "native two-page QR preview did not qualify": "native_qr_preview",
+    "synthetic inbox original was modified": "original_modified",
+    "teacher Home exposed a private path or person": "privacy_violation",
+    "pre-retention cancel wrote to workspace": "cancel_first_wrote",
+    "pre-retention cancel retained source": "cancel_first_retained",
+    "first consent cancellation absent": "cancel_first_unreported",
+    "Core must retain exactly one whole source": "retention_count",
+    "Core retained bytes do not match original": "retention_mismatch",
+    "first Core custody result absent": "retention_result_missing",
+    "read-only retained preparation did not qualify": "preparation_missing",
+    "read-only preparation claimed execution": "readonly_claimed_execution",
+    "second teacher cancellation was not rendered": "cancel_second_unreported",
+    "cancelled dispatch attempted a handler": "cancel_second_attempted",
+    "approved Core run did not attempt two pages": "attempt_count",
+    "approved Core run did not complete": "core_incomplete",
+    "two separate producer handler returns absent": "handler_count",
+    "Core-parsed producer groups absent": "producer_groups",
+    "Suite must not claim published grades": "grade_claim",
+    "non-dispatch scenario produced ScoreForm debug evidence": "unexpected_scoring",
+    "non-disposable path refused": "path_refused",
+}
+
+
 class _Terminal(io.StringIO):
     def isatty(self) -> bool:
         return True
@@ -34,15 +66,18 @@ def _transcript(root: Path, *, decision: str, wheelhouse: Path) -> str:
         raise HomeAcceptanceRefused("unsupported scripted consent scenario")
     steps = ["9", "2", str(root), "1", "1", "1,2", "P", "R"]
     if decision == "cancel_first":
-        steps.extend(("CANCEL", "Q"))
+        # First-consent cancellation returns to papers, not Teacher Home.
+        steps.extend(("CANCEL", "B", "Q"))
     else:
         steps.append("RETAIN")
         if decision == "retain_only":
-            steps.extend(("V", "B", "Q"))
+            # One B closes the retained view; another closes papers.
+            steps.extend(("V", "B", "B", "Q"))
         else:
             steps.extend(("D", str(wheelhouse)))
             if decision == "cancel_second":
-                steps.extend(("CANCEL", "B", "Q"))
+                # First B leaves Core review; second returns to Teacher Home.
+                steps.extend(("CANCEL", "B", "B", "Q"))
             else:
                 steps.extend(("DISPATCH", "B", "Q"))
     return "\n".join(steps) + "\n"
@@ -219,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--synthetic-parent", type=Path, required=True)
     parser.add_argument("--wheelhouse", type=Path, required=True)
     args = parser.parse_args(argv)
+    current_scenario = "setup"
     try:
         parent = args.synthetic_parent
         temp = Path(gettempdir()).resolve(strict=True)
@@ -235,10 +271,19 @@ def main(argv: list[str] | None = None) -> int:
         for scenario in (
             "cancel_first", "retain_only", "cancel_second", "dispatch"
         ):
+            current_scenario = scenario
+            print("SUITE19_G1_HOME_" + scenario.upper() + "_STARTED", flush=True)
             _run_case(parent, args.wheelhouse, scenario)
             print("SUITE19_G1_HOME_" + scenario.upper() + "_VERIFIED")
     except (Exception, KeyboardInterrupt) as error:
+        reason = (
+            _FAILURE_CODES.get(str(error), "unclassified")
+            if isinstance(error, HomeAcceptanceRefused) else "unexpected"
+        )
         print("SUITE19_G1_HOME_REFUSED:" + type(error).__name__, file=sys.stderr)
+        print("SUITE19_G1_HOME_FAILED_SCENARIO=" + current_scenario,
+              file=sys.stderr)
+        print("SUITE19_G1_HOME_FAILURE_CODE=" + reason, file=sys.stderr)
         return 2
     print("SUITE19_G1_INSTALLED_TEACHER_HOME_ACCEPTANCE_PASSED")
     print("SUITE19_G1_SYNTHETIC_ONLY_NOT_CLASSROOM_CERTIFICATION")
