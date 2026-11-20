@@ -63,9 +63,9 @@ _WORKFLOWS: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "Process Returned Papers",
-        "Unified paper intake and routing are not yet available here. "
-        "Suite #17-#19 own this workflow.",
-        "Use an application through its own supported menu instead.",
+        "Explicit local-file preview or Core inbox page selection; "
+        "retention and eligible dispatch require two separate teacher consents.",
+        "Choose 9 to review papers. No writes occur on entry or preview.",
     ),
     (
         "Attention Needed",
@@ -270,7 +270,11 @@ def _home_screen(
         output.write(f"    {app.purpose}\n")
     output.write("\nTeacher workflows\n")
     for number, (name, _, _) in enumerate(_WORKFLOWS, start=7):
-        output.write(f" {number}. {name} — not yet available\n")
+        status = (
+            "preview + consent-gated processing" if number == 9
+            else "not yet available"
+        )
+        output.write(f" {number}. {name} — {status}\n")
     output.write(" 11. Recent Applications — previously opened applications only\n")
     output.write(" 12. Help & Diagnostics\n")
     output.write("\nH. Help   B. Back   M. Main Menu   Q. Quit\n")
@@ -492,6 +496,18 @@ def run_teacher_home(
                 header=header,
                 launch=launch,
             )
+            continue
+        if choice == "9":
+            from paper_data_suite.returned_paper_teacher_preview import (
+                run_readonly_teacher_papers,
+            )
+
+            if run_readonly_teacher_papers(
+                input_stream=input_stream,
+                output=output,
+                show_header=lambda title: header.print(title, output=output),
+            ):
+                return 0
             continue
         if choice.isascii() and choice.isdecimal() and 7 <= int(choice) <= 10:
             title, detail, alternative = _WORKFLOWS[int(choice) - 7]

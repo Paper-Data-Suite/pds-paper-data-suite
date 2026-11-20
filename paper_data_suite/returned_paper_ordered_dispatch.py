@@ -7,9 +7,11 @@ Core owns dispatch; producers own their opaque results and durable effects.
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from collections import Counter
 from collections.abc import Callable
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
@@ -160,7 +162,19 @@ def _core_dispatch(
     registry: ModuleRegistry,
     requests: tuple[RouteDispatchRequest, ...],
 ) -> tuple[RouteDispatchOutcome, ...]:
-    return dispatch_routes(root, registry, requests)
+    """Invoke real Core without forwarding producer diagnostics to Home.
+
+    Core's typed outcome is preserved exactly. Incidental Python stdout/stderr
+    from registered producer handlers may include student names, local paths,
+    QR content or diagnostic artifacts, and is never a teacher UI contract.
+    This scoped suppression does not intercept direct OS-level writes or logs.
+    """
+    with (
+        open(os.devnull, "w", encoding="utf-8") as discarded,
+        redirect_stdout(discarded),
+        redirect_stderr(discarded),
+    ):
+        return dispatch_routes(root, registry, requests)
 
 
 def _batch_digest(batch: PreparedDispatchBatchV1) -> str:
