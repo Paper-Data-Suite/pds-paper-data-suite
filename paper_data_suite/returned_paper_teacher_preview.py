@@ -122,10 +122,11 @@ def run_readonly_teacher_papers(
     while True:
         show_header("Process Returned Papers — Preview")
         output.write(
-            "\nThis is read-only: files are not retained, routed or scored.\n"
-            "1. Preview explicitly selected local files\n"
-            "2. Select Core inbox entries and physical pages (read-only)\n"
-            "Actual processing requires separate approval in later slices.\n"
+            "\nOpening this menu is read-only; no source is processed.\n"
+            "1. Preview explicitly selected local files (read-only)\n"
+            "2. Select Core inbox entries and physical pages (initially read-only)\n"
+            "Core inbox processing requires separate RETAIN and DISPATCH consents.\n"
+            "Unqualified producers remain preview-only; no automatic dispatch.\n"
             "\nH. Help   B. Back   M. Main Menu   Q. Quit\n"
         )
         try:
@@ -137,8 +138,9 @@ def run_readonly_teacher_papers(
             if choice == "h":
                 output.write(
                     "Choose 1 to type 1-8 absolute PDF, PNG, or JPEG filenames.\n"
-                    "Choose 2 to list an explicitly chosen Core inbox and "
-                    "review selected physical pages.\n"
+                    "Choose 2 to review selected Core inbox physical pages.\n"
+                    "Any retention or eligible dispatch needs fresh separate consent.\n"
+                    "Individual local-file previews never process those files.\n"
                     "A file path is data, not a command. Blank cancels selection.\n"
                     "No route, score, grade or Core custody is authorized.\n"
                 )

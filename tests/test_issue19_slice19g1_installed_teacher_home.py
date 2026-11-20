@@ -86,6 +86,9 @@ def test_main_sequence_only_reports_pass_after_all_cases(
 ) -> None:
     wheels = tmp_path / "wheels"
     wheels.mkdir()
+    # CI uses --basetemp outside tempfile.gettempdir(); only this unit test
+    # follows pytest's isolated parent. Production path guards are unchanged.
+    monkeypatch.setattr(home, "gettempdir", lambda: str(tmp_path.parent))
     seen: list[str] = []
 
     def scenario(_: Path, __: Path, name: str) -> None:
@@ -173,6 +176,7 @@ def test_native_refusal_reports_scenario_with_allowlisted_code(
 ) -> None:
     wheels = tmp_path / "wheels"
     wheels.mkdir()
+    monkeypatch.setattr(home, "gettempdir", lambda: str(tmp_path.parent))
 
     def fail(_parent: Path, _wheels: Path, scenario: str) -> None:
         assert scenario == "cancel_first"
@@ -198,6 +202,7 @@ def test_unknown_failure_does_not_echo_sensitive_details(
 ) -> None:
     wheels = tmp_path / "wheels"
     wheels.mkdir()
+    monkeypatch.setattr(home, "gettempdir", lambda: str(tmp_path.parent))
 
     def fail(_parent: Path, _wheels: Path, _scenario: str) -> None:
         raise home.HomeAcceptanceRefused("SENSITIVE PDS2| C:/private/student")

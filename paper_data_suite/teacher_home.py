@@ -63,9 +63,9 @@ _WORKFLOWS: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "Process Returned Papers",
-        "Read-only file preview is available; Core custody and producer "
-        "dispatch remain unavailable in this workflow.",
-        "Choose 9 to preview explicitly selected files; no processing occurs.",
+        "Explicit local-file preview or Core inbox page selection; "
+        "retention and eligible dispatch require two separate teacher consents.",
+        "Choose 9 to review papers. No writes occur on entry or preview.",
     ),
     (
         "Attention Needed",
@@ -270,7 +270,10 @@ def _home_screen(
         output.write(f"    {app.purpose}\n")
     output.write("\nTeacher workflows\n")
     for number, (name, _, _) in enumerate(_WORKFLOWS, start=7):
-        status = "read-only preview" if number == 9 else "not yet available"
+        status = (
+            "preview + consent-gated processing" if number == 9
+            else "not yet available"
+        )
         output.write(f" {number}. {name} — {status}\n")
     output.write(" 11. Recent Applications — previously opened applications only\n")
     output.write(" 12. Help & Diagnostics\n")

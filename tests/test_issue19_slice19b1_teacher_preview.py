@@ -56,6 +56,7 @@ def test_help_is_nonmutating_and_preserves_home_return() -> None:
     assert not result and not calls
     assert "absolute PDF, PNG, or JPEG" in output
     assert "not a command" in output
+    assert "Any retention or eligible dispatch needs fresh separate consent." in output
 
 
 def test_explicit_absolute_source_is_only_observed_after_selection(
@@ -196,7 +197,8 @@ def test_home_option_9_opens_readonly_controller_without_other_menu_changes(
     ) == 0
     assert calls == ["item_9"]
     text = outgoing.getvalue()
-    assert "9. Process Returned Papers — read-only preview" in text
+    assert "9. Process Returned Papers — preview + consent-gated processing" in text
+    assert "later slices" not in text
     assert "Notes & Tasks — not yet available" in text
     assert "Attention Needed — not yet available" in text
     assert text.count("Teacher Home") >= 2
