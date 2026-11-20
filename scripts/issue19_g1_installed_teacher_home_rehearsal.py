@@ -42,6 +42,8 @@ _FAILURE_CODES: dict[str, str] = {
     "Core retained bytes do not match original": "retention_mismatch",
     "first Core custody result absent": "retention_result_missing",
     "read-only retained preparation did not qualify": "preparation_missing",
+    "read-only preparation omitted a synthetic physical page": "preparation_count",
+    "Core preparation omitted a synthetic physical page": "prepared_count",
     "read-only preparation claimed execution": "readonly_claimed_execution",
     "second teacher cancellation was not rendered": "cancel_second_unreported",
     "cancelled dispatch attempted a handler": "cancel_second_attempted",
@@ -64,7 +66,9 @@ def _transcript(root: Path, *, decision: str, wheelhouse: Path) -> str:
     """Select both explicit physical pages; never use blank/default-all."""
     if decision not in {"cancel_first", "retain_only", "cancel_second", "dispatch"}:
         raise HomeAcceptanceRefused("unsupported scripted consent scenario")
-    steps = ["9", "2", str(root), "1", "1", "1,2", "P", "R"]
+    # One inbox entry, then BOTH physical pages. A stray "1" here selects
+    # only page one; the later "1,2" is then ignored by the plan menu.
+    steps = ["9", "2", str(root), "1", "1,2", "P", "R"]
     if decision == "cancel_first":
         # First-consent cancellation returns to papers, not Teacher Home.
         steps.extend(("CANCEL", "B", "Q"))
@@ -222,14 +226,20 @@ def _run_case(parent: Path, wheelhouse: Path, scenario: str) -> None:
     if scenario == "retain_only":
         _require("Preparation status: ready" in display,
                  "read-only retained preparation did not qualify")
+        _require("Prepared typed Core requests: 2" in display,
+                 "read-only preparation omitted a synthetic physical page")
         _require("Core action: completed" not in display,
                  "read-only preparation claimed execution")
     elif scenario == "cancel_second":
+        _require("Stage: 2 Core-retained page request(s) prepared" in display,
+                 "Core preparation omitted a synthetic physical page")
         _require("Second consent cancelled" in display,
                  "second teacher cancellation was not rendered")
         _require("Core attempted physical pages: 0" in display,
                  "cancelled dispatch attempted a handler")
     else:
+        _require("Stage: 2 Core-retained page request(s) prepared" in display,
+                 "Core preparation omitted a synthetic physical page")
         _require("Core attempted physical pages: 2" in display,
                  "approved Core run did not attempt two pages")
         _require("Core run: completed" in display,
