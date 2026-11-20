@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Wheelhouse,
     [switch]$AllowPyPI,
-    [switch]$IncludeTeacherHome
+    [switch]$IncludeTeacherHome,
+    [switch]$IncludeLocalFiles
 )
 
 $ErrorActionPreference = 'Stop'
@@ -200,6 +201,17 @@ try {
             Assert-Exit 'G1 actual installed Teacher Home native journey'
             Write-Host 'SUITE19_G1_ACTUAL_INSTALLED_HOME_VERIFIED'
         }
+        if ($IncludeLocalFiles.IsPresent) {
+            $localScript = Join-Path $snapshot `
+                'scripts\issue19_g4_installed_local_files.py'
+            if (-not (Test-Path -LiteralPath $localScript -PathType Leaf)) {
+                throw 'Committed G4 installed local-file rehearsal is unavailable.'
+            }
+            & $installedPython $localScript `
+                --synthetic-parent $session --wheelhouse $wheelhousePath
+            Assert-Exit 'G4 actual installed local-file Home journey'
+            Write-Host 'SUITE19_G4_ACTUAL_INSTALLED_LOCAL_FILES_VERIFIED'
+        }
     } finally {
         Pop-Location
     }
@@ -208,9 +220,9 @@ try {
 }
 Write-Host 'SUITE19_E3A_SYNTHETIC_INSTALLED_ACCEPTANCE_PASSED'
 Write-Host 'SUITE19_E3A_DISPATCH_REMAINS_DEFAULT_DENY'
-if ($IncludeTeacherHome.IsPresent) {
+if ($IncludeTeacherHome.IsPresent -or $IncludeLocalFiles.IsPresent) {
     Write-Host ('Only disposable synthetic records were used; ' + `
-        'G1 exercised installed Teacher Home.')
+        'opt-in installed Teacher Home was exercised.')
 } else {
     Write-Host ('Only disposable synthetic records were used; ' + `
         'teacher UI not exercised.')

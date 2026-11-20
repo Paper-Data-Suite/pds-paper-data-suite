@@ -49,9 +49,11 @@ def _menu_choice(input_stream: TextIO, output: TextIO) -> str:
 def _selected_paths(
     input_stream: TextIO,
     output: TextIO,
+    *,
+    action: str = "preview",
 ) -> tuple[Path, ...] | None:
     """Collect only precisely chosen absolute files; no enumeration or reads."""
-    output.write("Number of files to preview (1-8; blank cancels): ")
+    output.write(f"Number of files to {action} (1-8; blank cancels): ")
     output.flush()
     count_text = _read_line(input_stream, limit=8)
     if count_text == "":
@@ -125,7 +127,9 @@ def run_readonly_teacher_papers(
             "\nOpening this menu is read-only; no source is processed.\n"
             "1. Preview explicitly selected local files (read-only)\n"
             "2. Select Core inbox entries and physical pages (initially read-only)\n"
+            "3. Process explicitly selected local files (separate consents)\n"
             "Core inbox processing requires separate RETAIN and DISPATCH consents.\n"
+            "Local processing also requires RETAIN then eligible DISPATCH.\n"
             "Unqualified producers remain preview-only; no automatic dispatch.\n"
             "\nH. Help   B. Back   M. Main Menu   Q. Quit\n"
         )
@@ -139,8 +143,10 @@ def run_readonly_teacher_papers(
                 output.write(
                     "Choose 1 to type 1-8 absolute PDF, PNG, or JPEG filenames.\n"
                     "Choose 2 to review selected Core inbox physical pages.\n"
+                    "Choose 3 to select local files, verify the active Core "
+                    "workspace, and explicitly review physical-page processing.\n"
                     "Any retention or eligible dispatch needs fresh separate consent.\n"
-                    "Individual local-file previews never process those files.\n"
+                    "Option 1 stays strictly read-only; option 3 is consent-gated.\n"
                     "A file path is data, not a command. Blank cancels selection.\n"
                     "No route, score, grade or Core custody is authorized.\n"
                 )
@@ -159,8 +165,32 @@ def run_readonly_teacher_papers(
                 if navigation == "home":
                     return False
                 continue
+            if choice == "3":
+                # A separate explicit choice; the original local-file option 1
+                # remains strictly read-only, including after its preview.
+                paths = _selected_paths(
+                    input_stream, output, action="process"
+                )
+                if paths is None:
+                    output.write(
+                        "Local processing selection cancelled; no files read.\n"
+                    )
+                    continue
+                from paper_data_suite.returned_paper_teacher_local import (
+                    run_selected_local_paper_processing,
+                )
+
+                navigation = run_selected_local_paper_processing(
+                    paths, input_stream=input_stream, output=output,
+                    show_header=show_header,
+                )
+                if navigation == "quit":
+                    return True
+                if navigation == "home":
+                    return False
+                continue
             if choice != "1":
-                output.write("Choose 1, 2, H, B, M, or Q.\n")
+                output.write("Choose 1, 2, 3, H, B, M, or Q.\n")
                 continue
             paths = _selected_paths(input_stream, output)
             if paths is None:
