@@ -81,3 +81,9 @@ Attention Needed, live owner actions and Notes separation require **#23**;
 physical/classroom release acceptance remains **#27/#28**. This note updates
 the older #16/#52 source observations without changing their historical
 published-release evidence or asserting a consolidated Core Notes/UI release.
+
+### Suite #21 — Slice A tagged-provider audit and per-owner admission block (2026-11-21)
+
+[Slice A release/category/authority audit](issue21-slice-a-released-attention-audit.md) inventories the exact **8 ScoreForm v0.13.0**, **17 Quillan v0.10.6**, and **20 Concord v0.3.4** published attention codes, literal source labels, inert action IDs and count/scope semantics. This is source/release-metadata evidence, **not downloaded-wheel, publisher-signing, installed callback, label-privacy or teacher dashboard qualification**. The #20 label allowlist remains empty; generic labels and six-owner unevaluated states remain unchanged.
+
+A public Core v0.6.6 contract gap blocks safe targeted evaluation: `inspect_core_provider_entry_points` is metadata-only, while `diagnose_core_providers(provider_kind="module_operations")` loads **all** candidates rather than only the explicitly admitted named owner. Suite will not invoke this broad diagnostic or introduce a parallel/private loader. Targeted Core-owned candidate selection, separately checked installed provenance, explicit workspace authorization and real synthetic read-only provider callbacks remain **PENDING** in #21 Slices B–E. #49 launch and #52 home are unaffected; #22 and #23 are downstream, not silently activated.
