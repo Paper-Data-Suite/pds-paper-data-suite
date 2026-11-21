@@ -17,7 +17,8 @@ from pds_core.module_operations import (
     ModuleOperationsRequest,
     validate_module_operations_request,
 )
-from pds_core.school_years import get_active_school_year
+from pds_core.routes import classes_dir
+from pds_core.school_years import get_active_school_year, school_year_state_path
 from pds_core.workspace import inspect_workspace_root, resolve_workspace_root
 
 _SELECTION_OWNERS: Final[tuple[str, ...]] = ("scoreform", "quillan", "concord")
@@ -58,12 +59,13 @@ def _refused(
 
 def _approved_owners(value: object) -> tuple[str, ...] | None:
     """Require an explicit, nonempty, unambiguous subset of the first 3 owners."""
-    if (
-        type(value) is not tuple
-        or not 1 <= len(value) <= len(_SELECTION_OWNERS)
-        or any(type(owner) is not str or owner not in _SELECTION_OWNERS for owner in value)
-        or len(set(value)) != len(value)
-    ):
+    if type(value) is not tuple:
+        return None
+    if not 1 <= len(value) <= len(_SELECTION_OWNERS):
+        return None
+    if any(type(owner) is not str or owner not in _SELECTION_OWNERS for owner in value):
+        return None
+    if len(set(value)) != len(value):
         return None
     return tuple(owner for owner in _SELECTION_OWNERS if owner in value)
 
@@ -129,6 +131,25 @@ def prepare_selected_attention_scope(
         # evaluation root fallback.
         if resolve_workspace_root() != workspace_root:
             return _refused("workspace_mismatch", owners)
+    except Exception:
+        return _refused("workspace_unavailable", owners)
+
+    # Core's public year and class readers must not traverse a symlinked
+    # container into another teacher/workspace. These checks are preflight,
+    # not a claim of race-free filesystem isolation during later callbacks.
+    try:
+        year_path = school_year_state_path(workspace_root)
+        classes_path = classes_dir(workspace_root)
+        if (
+            not classes_path.is_dir()
+            or classes_path.resolve(strict=True) != classes_path
+            or year_path.parent.resolve(strict=True) != year_path.parent
+            or (
+                year_path.exists()
+                and year_path.resolve(strict=True) != year_path
+            )
+        ):
+            return _refused("workspace_unavailable", owners)
     except Exception:
         return _refused("workspace_unavailable", owners)
 
