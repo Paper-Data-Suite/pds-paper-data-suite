@@ -59,7 +59,7 @@ def _refused(
 
 def _approved_owners(value: object) -> tuple[str, ...] | None:
     """Require an explicit, nonempty, unambiguous subset of the first 3 owners."""
-    if type(value) is not tuple:
+    if not isinstance(value, tuple) or type(value) is not tuple:
         return None
     if not 1 <= len(value) <= len(_SELECTION_OWNERS):
         return None
