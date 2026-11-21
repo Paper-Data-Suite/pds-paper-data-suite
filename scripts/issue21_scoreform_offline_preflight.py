@@ -12,7 +12,6 @@ Never import this from pds startup, launch, or Teacher Home.
 from __future__ import annotations
 
 import argparse
-import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from importlib import metadata
@@ -84,7 +83,9 @@ def _safe_wheelhouse(path: object) -> bool:
 def inspect_scoreform_offline_release(
     wheelhouse: Path,
     *,
-    wheel_inspector: Callable[[Path, OfficialWheel], WheelEvidence] = inspect_official_wheel,
+    wheel_inspector: Callable[[Path, OfficialWheel], WheelEvidence] = (
+        inspect_official_wheel
+    ),
     version_lookup: Callable[[str], str] = metadata.version,
     entrypoint_reader: Callable[[], Iterable[EntryPointObservation]] = (
         installed_entry_point_inventory
