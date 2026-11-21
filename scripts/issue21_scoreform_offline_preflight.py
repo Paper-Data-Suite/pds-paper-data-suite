@@ -1,12 +1,13 @@
-"""Suite #21 B1: explicit OFFLINE Core/ScoreForm release-evidence probe.
+"""Suite #21: explicit OFFLINE Core+named-producer release-evidence probe.
 
-Reuse Suite #16's exact published-wheel byte inspector. Reading matching
-installed metadata is neither provenance attestation for installed code nor
+Reuse Suite #16's exact published-wheel byte inspector. Matching installed
+metadata is neither provenance attestation for installed executable code nor
 authorization to load an entry point or invoke any attention callback.
 
-Invoke deliberately via: python -m scripts.issue21_scoreform_offline_preflight
-    --wheelhouse PATH
-Never import this from pds startup, launch, or Teacher Home.
+The existing ScoreForm CLI remains:
+    python -m scripts.issue21_scoreform_offline_preflight --wheelhouse PATH
+C0/D0 reuse the shared inspector through a second explicit CLI. No provider
+code is imported by this module or either CLI.
 """
 
 from __future__ import annotations
@@ -33,12 +34,21 @@ from scripts.issue16_official_wheel_acceptance import (
 
 _GROUP: Final = "paper_data_suite.module_operations"
 _MAX_ENTRY_POINTS: Final = 256
+_SUPPORTED_OWNERS: Final[tuple[str, ...]] = (
+    "scoreform", "quillan", "concord"
+)
 _REQUIRED: Final = ("core", "scoreform")
+_RELEASE_BY_COMPONENT: Final[dict[str, OfficialWheel]] = {
+    row.component: row for row in OFFICIAL_WHEELS
+    if row.component in ("core", *_SUPPORTED_OWNERS)
+}
+# Keep the B1 ScoreForm pair public to existing source tests.
 _BY_OWNER: Final[dict[str, OfficialWheel]] = {
     row.component: row for row in OFFICIAL_WHEELS if row.component in _REQUIRED
 }
 
 B1Code = Literal[
+    "owner_unapproved",
     "wheelhouse_unavailable",
     "wheel_evidence_unverified",
     "installed_metadata_unavailable",
@@ -49,8 +59,8 @@ B1Code = Literal[
 
 
 @dataclass(frozen=True, slots=True)
-class ScoreFormOfflineEvidence:
-    """Static result: no executable profile, authority or private paths."""
+class ModuleOfflineEvidence:
+    """Static non-admission result; no executable profile or private path."""
 
     code: B1Code
     examined: tuple[str, ...] = _REQUIRED
@@ -60,8 +70,14 @@ class ScoreFormOfflineEvidence:
         return self.code == "metadata_consistent_not_admitted"
 
 
-def _refused(code: B1Code) -> ScoreFormOfflineEvidence:
-    return ScoreFormOfflineEvidence(code=code)
+# Backward-compatible alias for the ScoreForm B1.0 focused tests.
+ScoreFormOfflineEvidence = ModuleOfflineEvidence
+
+
+def _refused(
+    code: B1Code, examined: tuple[str, ...] = _REQUIRED
+) -> ModuleOfflineEvidence:
+    return ModuleOfflineEvidence(code=code, examined=examined)
 
 
 def _safe_wheelhouse(path: object) -> bool:
@@ -80,6 +96,89 @@ def _safe_wheelhouse(path: object) -> bool:
         return False
 
 
+def inspect_named_producer_offline_release(
+    wheelhouse: Path,
+    *,
+    owner_id: str,
+    wheel_inspector: Callable[[Path, OfficialWheel], WheelEvidence] = (
+        inspect_official_wheel
+    ),
+    version_lookup: Callable[[str], str] = metadata.version,
+    entrypoint_reader: Callable[[], Iterable[EntryPointObservation]] = (
+        installed_entry_point_inventory
+    ),
+) -> ModuleOfflineEvidence:
+    """Check one fixed Core+producer wheel pair and installed metadata.
+
+    This is metadata observation only. In particular, a successful status is
+    NOT proof that the installed executable bytes came from either local wheel.
+    No provider, workspace or attention callback is ever loaded or inspected.
+    """
+    if type(owner_id) is not str or owner_id not in _SUPPORTED_OWNERS:
+        return _refused("owner_unapproved", ())
+    examined = ("core", owner_id)
+    if not _safe_wheelhouse(wheelhouse):
+        return _refused("wheelhouse_unavailable", examined)
+
+    # Exact official release bytes+metadata: retain #16 as the sole inspector.
+    try:
+        if not set(examined).issubset(_RELEASE_BY_COMPONENT):
+            return _refused("wheel_evidence_unverified", examined)
+        for component_id in examined:
+            spec = _RELEASE_BY_COMPONENT[component_id]
+            evidence = wheel_inspector(wheelhouse, spec)
+            if (
+                not isinstance(evidence, WheelEvidence)
+                or evidence.component != spec.component
+                or evidence.version != spec.version
+                or evidence.sha256 != spec.digest
+                or evidence.status != "verified_metadata"
+            ):
+                return _refused("wheel_evidence_unverified", examined)
+    except Exception:
+        return _refused("wheel_evidence_unverified", examined)
+
+    # Read-only installed package metadata, not direct import or provenance.
+    try:
+        for component_id in examined:
+            spec = _RELEASE_BY_COMPONENT[component_id]
+            if version_lookup(spec.distribution) != spec.version:
+                return _refused("installed_version_mismatch", examined)
+    except metadata.PackageNotFoundError:
+        return _refused("installed_version_mismatch", examined)
+    except Exception:
+        return _refused("installed_metadata_unavailable", examined)
+
+    # Unambiguous exact-name EP. Foreign duplicate counts as a conflict.
+    target_spec = _RELEASE_BY_COMPONENT[owner_id]
+    if target_spec.entry_point is None or target_spec.target is None:
+        return _refused("entry_point_unqualified", examined)
+    try:
+        observed = tuple(islice(entrypoint_reader(), _MAX_ENTRY_POINTS + 1))
+        if len(observed) > _MAX_ENTRY_POINTS:
+            return _refused("installed_metadata_unavailable", examined)
+        matching = [
+            row for row in observed
+            if row.group == _GROUP and row.name == target_spec.entry_point
+        ]
+        if len(matching) != 1:
+            return _refused("entry_point_unqualified", examined)
+        candidate = matching[0]
+        if (
+            candidate.target != target_spec.target
+            or normalize_entry_point_owner(candidate.distribution)
+            != normalize_entry_point_owner(target_spec.distribution)
+            or candidate.distribution_version != target_spec.version
+        ):
+            return _refused("entry_point_unqualified", examined)
+    except Exception:
+        return _refused("installed_metadata_unavailable", examined)
+
+    return ModuleOfflineEvidence(
+        code="metadata_consistent_not_admitted", examined=examined
+    )
+
+
 def inspect_scoreform_offline_release(
     wheelhouse: Path,
     *,
@@ -91,72 +190,14 @@ def inspect_scoreform_offline_release(
         installed_entry_point_inventory
     ),
 ) -> ScoreFormOfflineEvidence:
-    """Check fixed Core+ScoreForm release bytes and installed metadata.
-
-    The exact available #16 tagged wheel specs are the sole release pins.
-    This process NEVER loads the entry point, calls its factory, or reads
-    teacher workspaces. A matching installed version/EP is not proof that
-    the currently installed package's bytes came from the checked wheel.
-    """
-    if not _safe_wheelhouse(wheelhouse):
-        return _refused("wheelhouse_unavailable")
-
-    # Exact official release bytes+metadata, using existing #16 gate only.
-    try:
-        if set(_BY_OWNER) != set(_REQUIRED):
-            return _refused("wheel_evidence_unverified")
-        for component_id in _REQUIRED:
-            spec = _BY_OWNER[component_id]
-            evidence = wheel_inspector(wheelhouse, spec)
-            if (
-                not isinstance(evidence, WheelEvidence)
-                or evidence.component != spec.component
-                or evidence.version != spec.version
-                or evidence.sha256 != spec.digest
-                or evidence.status != "verified_metadata"
-            ):
-                return _refused("wheel_evidence_unverified")
-    except Exception:
-        return _refused("wheel_evidence_unverified")
-
-    # Version metadata is read-only, not a direct executable source import.
-    try:
-        for component_id in _REQUIRED:
-            spec = _BY_OWNER[component_id]
-            if version_lookup(spec.distribution) != spec.version:
-                return _refused("installed_version_mismatch")
-    except metadata.PackageNotFoundError:
-        return _refused("installed_version_mismatch")
-    except Exception:
-        return _refused("installed_metadata_unavailable")
-
-    # Only inspect metadata for the exact published operations EP. A foreign
-    # duplicate is a conflict even if one official candidate also matches.
-    target_spec = _BY_OWNER["scoreform"]
-    if target_spec.entry_point is None or target_spec.target is None:
-        return _refused("entry_point_unqualified")
-    try:
-        observed = tuple(islice(entrypoint_reader(), _MAX_ENTRY_POINTS + 1))
-        if len(observed) > _MAX_ENTRY_POINTS:
-            return _refused("installed_metadata_unavailable")
-        matching = [
-            row for row in observed
-            if row.group == _GROUP and row.name == target_spec.entry_point
-        ]
-        if len(matching) != 1:
-            return _refused("entry_point_unqualified")
-        candidate = matching[0]
-        if (
-            candidate.target != target_spec.target
-            or normalize_entry_point_owner(candidate.distribution)
-            != normalize_entry_point_owner(target_spec.distribution)
-            or candidate.distribution_version != target_spec.version
-        ):
-            return _refused("entry_point_unqualified")
-    except Exception:
-        return _refused("installed_metadata_unavailable")
-
-    return ScoreFormOfflineEvidence(code="metadata_consistent_not_admitted")
+    """Preserve B1.0 ScoreForm API and exact refusal behavior."""
+    return inspect_named_producer_offline_release(
+        wheelhouse,
+        owner_id="scoreform",
+        wheel_inspector=wheel_inspector,
+        version_lookup=version_lookup,
+        entrypoint_reader=entrypoint_reader,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
