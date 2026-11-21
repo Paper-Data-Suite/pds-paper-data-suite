@@ -279,9 +279,18 @@ def test_cli_prints_static_nonadmission_status_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    original = probe.inspect_scoreform_offline_release
+
+    def synthetic_offline_probe(path: Path) -> probe.ScoreFormOfflineEvidence:
+        return original(
+            path,
+            wheel_inspector=_fake_wheel,
+            version_lookup=_version,
+            entrypoint_reader=lambda: (_entry(),),
+        )
+
     monkeypatch.setattr(
-        probe, "inspect_scoreform_offline_release",
-        lambda path: _go(path),
+        probe, "inspect_scoreform_offline_release", synthetic_offline_probe
     )
     assert probe.main(["--wheelhouse", str(tmp_path)]) == 0
     output = capsys.readouterr().out
