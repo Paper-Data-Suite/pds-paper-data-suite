@@ -284,3 +284,35 @@ def test_wrong_class_symlink_redirect_refused_when_supported(
     assert result.code == "class_unavailable"
     assert result.request is None
     assert not (outside / "new_state").exists()
+
+def test_year_state_symlink_redirect_refused_before_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _workspace(tmp_path, monkeypatch)
+    year_file = root / "settings" / "school_year.json"
+    outside = tmp_path / "private_foreign_year_state.json"
+    outside.write_bytes(year_file.read_bytes())
+    year_file.unlink()
+    try:
+        year_file.symlink_to(outside)
+    except OSError:
+        pytest.skip("This host does not allow file symlink fixtures")
+    result = _scope(root)
+    assert result.code == "workspace_unavailable"
+    assert result.request is None
+
+
+def test_classes_collection_redirect_refused_before_class_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _workspace(tmp_path, monkeypatch)
+    collection = root / "classes"
+    outside = tmp_path / "private_foreign_classes"
+    collection.rename(outside)
+    try:
+        collection.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("This host does not allow directory symlink fixtures")
+    result = _scope(root, class_id=None)
+    assert result.code == "workspace_unavailable"
+    assert result.request is None
