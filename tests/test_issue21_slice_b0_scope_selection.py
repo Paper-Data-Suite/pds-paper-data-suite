@@ -227,7 +227,10 @@ def test_unsafe_class_selection_is_refused_without_private_echo(
     result = _scope(root, class_id=class_id)
     assert result.code in {"invalid_selection", "class_unavailable"}
     assert result.request is None
-    assert class_id not in repr(result)
+    rendered = repr(result)
+    assert "class_id=" not in rendered
+    if class_id:
+        assert class_id not in rendered
 
 
 def test_explicit_whole_workspace_selection_keeps_class_unset(
