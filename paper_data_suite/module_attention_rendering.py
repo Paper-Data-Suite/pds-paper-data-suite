@@ -9,8 +9,18 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from pds_core.module_operations import validate_module_owner_action_ref
+from pds_core.routing_models import ModuleWorkRef, validate_module_work_ref
+
 from paper_data_suite.evergreen_local_registry import APPROVED_COMPONENTS
+from paper_data_suite.module_attention_label_policy import (
+    GENERIC_ATTENTION_LABEL,
+    allowed_attention_label,
+    label_for_attention_category,
+)
 from paper_data_suite.module_attention_projection import (
+    AttentionItem,
+    AttentionModuleRow,
     AttentionProjection,
     AttentionState,
 )
@@ -46,9 +56,10 @@ _MAX_FILTER_LEN = 128
 
 @dataclass(frozen=True, slots=True)
 class AttentionDisplayItem:
-    """Safe presentation datum. No owner text, actions, class or work IDs."""
+    """Safe presentation datum; category label only via source-reviewed policy."""
 
     owner_count: int | None
+    category_label: str = GENERIC_ATTENTION_LABEL
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,20 +98,44 @@ def _valid_filter(value: object, *, maximum: int = _MAX_FILTER_LEN) -> bool:
 
 
 def _validate_projection(projection: AttentionProjection) -> None:
-    """Do not let a forged/modified projection inject labels or state claims."""
+    """Fail closed on hostile nested objects without repeating private details."""
+    try:
+        _validate_projection_fields(projection)
+    except Exception:
+        raise ValueError("invalid_attention_view") from None
+
+
+def _validate_projection_fields(projection: AttentionProjection) -> None:
+    """Revalidate source owner, work, action and context identities."""
     if not isinstance(projection, AttentionProjection):
         raise ValueError("invalid_attention_view")
-    if len(projection.modules) != len(_APPROVED):
+    if type(projection.modules) is not tuple or len(projection.modules) != len(
+        _APPROVED
+    ):
         raise ValueError("invalid_attention_view")
     evaluated = 0
     for component, row in zip(_APPROVED, projection.modules, strict=True):
+        if not isinstance(row, AttentionModuleRow):
+            raise ValueError("invalid_attention_view")
         if (
             row.module_id != component.component_id
             or row.display_name != component.display_name
             or row.state not in _KNOWN_STATES
             or type(row.notice_count) is not int
             or not 0 <= row.notice_count <= _MAX_CORE_NOTICES
+            or type(row.items) is not tuple
             or len(row.items) > _MAX_CORE_ITEMS
+            or (
+                row.state in {"evaluated_empty", "evaluated_items"}
+                and (
+                    row.metadata_state != "declared_unvalidated"
+                    or row.profile_state != "valid"
+                )
+            )
+            or (
+                row.state not in {"evaluated_empty", "evaluated_items"}
+                and row.notice_count != 0
+            )
         ):
             raise ValueError("invalid_attention_view")
         if row.state in {"evaluated_empty", "evaluated_items"}:
@@ -110,6 +145,8 @@ def _validate_projection(projection: AttentionProjection) -> None:
         elif row.items:
             raise ValueError("invalid_attention_view")
         for item in row.items:
+            if not isinstance(item, AttentionItem):
+                raise ValueError("invalid_attention_view")
             if (
                 item.owner_id != row.module_id
                 or type(item.code) is not str
@@ -124,6 +161,33 @@ def _validate_projection(projection: AttentionProjection) -> None:
                         type(item.count) is not int
                         or not 0 <= item.count <= _MAX_CORE_COUNT
                     )
+                )
+            ):
+                raise ValueError("invalid_attention_view")
+            if item.work_ref is not None:
+                if not isinstance(item.work_ref, ModuleWorkRef):
+                    raise ValueError("invalid_attention_view")
+                validate_module_work_ref(item.work_ref)
+                if (
+                    item.work_ref.module_id != row.module_id
+                    or (
+                        item.class_id is not None
+                        and item.work_ref.class_id != item.class_id
+                    )
+                ):
+                    raise ValueError("invalid_attention_view")
+            if item.action is not None:
+                validate_module_owner_action_ref(
+                    item.action, expected_module_id=row.module_id
+                )
+            if projection.requested_class_id is not None and (
+                (
+                    item.class_id is not None
+                    and item.class_id != projection.requested_class_id
+                )
+                or (
+                    item.work_ref is not None
+                    and item.work_ref.class_id != projection.requested_class_id
                 )
             ):
                 raise ValueError("invalid_attention_view")
@@ -193,7 +257,12 @@ def filter_attention_projection(
             )
         )
         shown = tuple(
-            AttentionDisplayItem(item.count)
+            AttentionDisplayItem(
+                owner_count=item.count,
+                category_label=label_for_attention_category(
+                    original.module_id, item.code
+                ),
+            )
             for _, item in qualifying[:per_module_limit]
         )
         rows.append(
@@ -220,8 +289,20 @@ def filter_attention_projection(
 
 
 def format_attention_display(view: AttentionDisplay) -> str:
-    """Accessible, deterministic, bounded text. Only internally fixed words."""
-    if not isinstance(view, AttentionDisplay) or len(view.rows) != len(_APPROVED):
+    """Suppress hostile display-object errors before showing any text."""
+    try:
+        return _format_attention_display_checked(view)
+    except Exception:
+        raise ValueError("invalid_attention_display") from None
+
+
+def _format_attention_display_checked(view: AttentionDisplay) -> str:
+    """Accessible, deterministic, bounded, source-reviewed text only."""
+    if (
+        not isinstance(view, AttentionDisplay)
+        or type(view.rows) is not tuple
+        or len(view.rows) != len(_APPROVED)
+    ):
         raise ValueError("invalid_attention_display")
     if (
         view.coverage not in {"none_evaluated", "partial", "complete"}
@@ -274,6 +355,8 @@ def format_attention_display(view: AttentionDisplay) -> str:
         active = ", ".join(label for label in labels if label)
         lines.append("Filters applied: " + active + ".")
     for component, row in zip(_APPROVED, view.rows, strict=True):
+        if not isinstance(row, AttentionDisplayRow):
+            raise ValueError("invalid_attention_display")
         if (
             row.module_id != component.component_id
             or row.display_name != component.display_name
@@ -285,7 +368,9 @@ def format_attention_display(view: AttentionDisplay) -> str:
             or row.reported_items < 0
             or row.matching_items < 0
             or row.hidden_matching_items < 0
+            or type(row.items) is not tuple
             or len(row.items) > 16
+            or row.reported_items > _MAX_CORE_ITEMS
             or row.matching_items != len(row.items) + row.hidden_matching_items
             or row.matching_items > row.reported_items
             or (not row.selected and (row.matching_items or row.items))
@@ -311,6 +396,9 @@ def format_attention_display(view: AttentionDisplay) -> str:
             for item in row.items:
                 if (
                     not isinstance(item, AttentionDisplayItem)
+                    or not allowed_attention_label(
+                        row.module_id, item.category_label
+                    )
                     or (
                         item.owner_count is not None
                         and (
@@ -324,7 +412,7 @@ def format_attention_display(view: AttentionDisplay) -> str:
                     "count not supplied" if item.owner_count is None
                     else f"owner count: {item.owner_count}"
                 )
-                lines.append("  - Module attention item (" + count + ")")
+                lines.append("  - " + item.category_label + " (" + count + ")")
             if row.hidden_matching_items:
                 lines.append(
                     f"  {row.hidden_matching_items} additional matching item(s) "
