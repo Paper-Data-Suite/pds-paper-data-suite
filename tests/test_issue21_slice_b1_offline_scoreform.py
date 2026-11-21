@@ -14,7 +14,6 @@ from scripts import issue21_scoreform_offline_preflight as probe
 from scripts.issue16_official_wheel_acceptance import OfficialWheel, WheelEvidence
 
 _GROUP = "paper_data_suite.module_operations"
-_SPEC = probe._BY_OWNER["scoreform"]
 
 
 def _entry(
