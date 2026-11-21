@@ -99,7 +99,10 @@ def test_exact_core_plus_selected_owner_wheels_are_inspected_only(
         observed.append(spec.component)
         return _synthetic_wheel(path, spec)
 
+    witness = tmp_path / "synthetic_offline_witness.txt"
+    witness.write_bytes(b"Synthetic evidence: no student information")
     before = _digest_state(tmp_path)
+    assert before
     result = _run(tmp_path, owner, wheel_inspector=inspect)
     assert result.code == "metadata_consistent_not_admitted"
     assert result.metadata_consistent
