@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import pytest
@@ -60,9 +61,11 @@ def _version(distribution: str) -> str:
 
 def _run(
     root: Path, owner: str, *,
-    reader=None,
-    wheel_inspector=_synthetic_wheel,
-    version_lookup=_version,
+    reader: Callable[[], Iterable[EntryPointObservation]] | None = None,
+    wheel_inspector: Callable[[Path, OfficialWheel], WheelEvidence] = (
+        _synthetic_wheel
+    ),
+    version_lookup: Callable[[str], str] = _version,
 ) -> core_probe.ModuleOfflineEvidence:
     if reader is None:
         reader = lambda: (_entry(owner),)
@@ -201,7 +204,7 @@ def test_wrong_target_or_metadata_reader_crash_refused(
         tmp_path, owner, reader=lambda: (changed,)
     ).code == "entry_point_unqualified"
 
-    def broken():
+    def broken() -> tuple[EntryPointObservation, ...]:
         raise RuntimeError("PRIVATE_STUDENT_TRACEBACK")
 
     result = _run(tmp_path, owner, reader=broken)
@@ -248,7 +251,9 @@ def test_cli_prints_only_static_nonadmission_code(
 ) -> None:
     original = core_probe.inspect_named_producer_offline_release
 
-    def synthetic(path: Path, *, owner_id: str):
+    def synthetic(
+        path: Path, *, owner_id: str
+    ) -> core_probe.ModuleOfflineEvidence:
         return original(
             path, owner_id=owner_id,
             wheel_inspector=_synthetic_wheel,
