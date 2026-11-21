@@ -68,7 +68,10 @@ def _run(
     version_lookup: Callable[[str], str] = _version,
 ) -> core_probe.ModuleOfflineEvidence:
     if reader is None:
-        reader = lambda: (_entry(owner),)
+        def selected_entries() -> tuple[EntryPointObservation, ...]:
+            return (_entry(owner),)
+
+        reader = selected_entries
     return core_probe.inspect_named_producer_offline_release(
         root,
         owner_id=owner,
