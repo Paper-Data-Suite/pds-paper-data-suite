@@ -54,3 +54,30 @@ The [module-operations provider qualification record](module-operations-provider
 The teacher's completed Slice 3 Windows witness verified Core source `a0d5e1a50580bbe025f0cad23c7e8524203a52ec` as a **developer-only build** with wheel SHA-256 `62a62f4f3da06e6926832ec22d2b071449f5424aa58566ee1f1ca32120bef2ef`, exercised `terminal.header.v1` and pure `terminal.notes_command.v1`, and **separately** verified the official published Core v0.6.6 wheel SHA-256 `d6d21e426092b0329bcfd69b6fbee44c345edc46794a914d847d5ea73a2b7301` for pre-contract plain-text fallback. **The official Core v1 header wheel D2/D3 acceptance is still NOT YET QUALIFIED.** Source evidence and a 0.6.6 version string are not publisher provenance; the existing matrix's installed-artifact qualification limits remain in force.
 
 Handoff is capability-gated: #53 owns `classroom.menu.v1`; #54 owns real `notes.records.v1`/`notes.menu.v1`; #17–#23 own paper intake and evaluated attention; #24 owns deeper recent work; #25/#26 own extended diagnostic behavior. None of these is implemented by #52's disabled menu labels. Real supported interactive-console/ANSI behavior and the official newer-Core wheel gate remain pending, and the #52 merge/deferral decision must state that explicitly.
+
+### Suite #20 — attention projection/renderer source handoff and D2 gate (2026-11-21)
+
+The first three #20 slices establish a **source-level, pure** Suite attention
+consumer with no automatic producer execution. The approved six-owner
+`paper_data_suite.module_attention_projection.project_module_attention` view
+consumes explicitly supplied #16 metadata/profile observations and Core v1
+`ModuleOperationsInvocationResult`, checking owner/class boundaries and
+keeping unavailable, failed, unevaluated, evaluated-empty and reported-item
+states separate. `module_attention_rendering.filter_attention_projection`
+and `format_attention_display` provide bounded exact filters, stable order,
+privacy-safe generic labels, incomplete-coverage disclosure and inert actions.
+`module_attention_label_policy` contains **no** producer category approvals
+until #21/#22 qualify them from exact installed source and privacy review.
+
+Source status: **Slices A–C committed** on the #20 development branch, with
+Ruff, strict mypy and their focused regressions qualified on Windows; not
+merged and not a published new Suite wheel. [Slice D evidence and consumer
+handoff](issue20-attention-installed-handoff.md) adds a separately executable
+clean installed Core **v0.6.6** + newly built Suite **0.1.0** synthetic contract
+smoke. Actual installed outcome remains **PENDING until run and recorded**.
+No real ScoreForm, Quillan, Concord, Meridian, Vitrine or Portia attention
+callback evaluation is qualified by #20; those are **#21/#22**. Interactive
+Attention Needed, live owner actions and Notes separation require **#23**;
+physical/classroom release acceptance remains **#27/#28**. This note updates
+the older #16/#52 source observations without changing their historical
+published-release evidence or asserting a consolidated Core Notes/UI release.
